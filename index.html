@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CowSwap 监控 + WalletConnect v2 (本地 SDK 版)</title>
+  <title>CowSwap 监控 + WalletConnect v2</title>
   <style>
     body{font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; max-width:900px;margin:20px auto;padding:20px}
     h1{font-size:20px}
@@ -14,9 +14,18 @@
     .green{color:green}
     .red{color:#c0392b}
   </style>
+  <!-- 引入 ethers -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <!-- 引入 Web3Modal v2 -->
+  <script type="module">
+    import { Web3Modal } from "https://cdn.jsdelivr.net/npm/@web3modal/html@2.10.2/dist/index.min.js";
+    import { EthereumClient, w3mConnectors, w3mProvider } from "https://cdn.jsdelivr.net/npm/@web3modal/ethereum@2.10.2/dist/index.min.js";
+
+    window.WC = { Web3Modal, EthereumClient, w3mConnectors, w3mProvider };
+  </script>
 </head>
 <body>
-  <h1>CowSwap 报价监控（WalletConnect v2 半自动，本地 SDK）</h1>
+  <h1>CowSwap 报价监控（WalletConnect v2 半自动）</h1>
 
   <div class="card">
     <div><strong>配置</strong></div>
@@ -33,7 +42,7 @@
   </div>
 
   <div class="card">
-    <button id="connectBtn">连接 Wallet（WalletConnect v2 / TP钱包扫码）</button>
+    <button id="connectBtn">连接 Wallet（WalletConnect v2 / 扫码）</button>
     <button id="sendBtn" class="secondary" disabled>满足条件时推送交易到 Wallet</button>
   </div>
 
@@ -43,10 +52,7 @@
 </pre>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script src="./index.min.js"></script> <!-- 本地下载的 WalletConnect SDK -->
-
-  <script>
+  <script type="module">
     const USDC = { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6 };
     const USDT = { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6 };
     const SELL_AMOUNT_USDC = 5000;
@@ -121,16 +127,23 @@
       try{
         const projectId = document.getElementById('wcProjectId').value.trim();
         if(!projectId){ log('请填写 WalletConnect ProjectId'); return; }
-        wcProvider = await window.WalletConnectEthereumProvider.init({ projectId, chains:[1], showQrModal:true });
-        await wcProvider.enable();
-        ethersProvider = new ethers.providers.Web3Provider(wcProvider);
+
+        // 初始化 Web3Modal
+        const modal = new window.WC.Web3Modal({
+          projectId,
+          themeMode: "light"
+        });
+        const provider = await modal.connect();
+        ethersProvider = new ethers.providers.Web3Provider(provider);
         signer = ethersProvider.getSigner();
         const addr = await signer.getAddress();
         log('已连接钱包: ' + addr);
         connectBtn.textContent = '已连接: ' + addr.slice(0,6)+'...'+addr.slice(-4);
         connectBtn.disabled = true;
         sendBtn.disabled = !window.latestQuote;
-      } catch(err){ log('连接钱包失败: ' + err); }
+      } catch(err){
+        log('连接钱包失败: ' + err);
+      }
     });
 
     sendBtn.addEventListener('click', async ()=>{
