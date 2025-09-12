@@ -1,291 +1,435 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CowSwap 监控 + WalletConnect v2</title>
-  <style>
-    body{font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; max-width:900px;margin:20px auto;padding:20px}
-    h1{font-size:20px}
-    .card{border:1px solid #e6e6e6;padding:16px;border-radius:8px;margin-bottom:12px}
-    button{padding:8px 12px;border-radius:6px;border:0;background:#0b74de;color:white;cursor:pointer}
-    button.secondary{background:#666}
-    button:disabled{background:#ccc; cursor:not-allowed}
-    pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto}
-    .green{color:green}
-    .red{color:#c0392b}
-    #walletConnectModal {position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; z-index: 1000;}
-    #walletConnectModal .modal-content {position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 12px; text-align: center;}
-    #walletConnectModal .close {position: absolute; top: 10px; right: 10px; cursor: pointer; font-size: 20px;}
-    #qrcode canvas {max-width: 300px; max-height: 300px;}
-  </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CowSwap 监控 + WalletConnect v2</title>
+    <style>
+        body {
+            font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .card {
+            border: 1px solid #e6e6e6;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        button {
+            padding: 10px 16px;
+            border-radius: 6px;
+            border: 0;
+            background: #0b74de;
+            color: white;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0a60b9;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        button.secondary {
+            background: #666;
+        }
+        pre {
+            background: #f6f8fa;
+            padding: 12px;
+            border-radius: 6px;
+            overflow: auto;
+            font-size: 13px;
+        }
+        .green {
+            color: green;
+        }
+        .red {
+            color: #c0392b;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        label {
+            font-weight: 500;
+        }
+        #walletConnectModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #walletConnectModal .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 90%;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        #walletConnectModal .close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            cursor: pointer;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        #qrcode {
+            margin: 15px 0;
+            display: flex;
+            justify-content: center;
+        }
+        .status-item {
+            margin: 8px 0;
+        }
+    </style>
 </head>
 <body>
-<h1>CowSwap 报价监控（WalletConnect v2 半自动，本地 SDK）</h1>
+    <h1>CowSwap 报价监控（WalletConnect v2 半自动，本地 SDK）</h1>
 
-<div class="card">
-  <div><strong>配置</strong></div>
-  <label>轮询间隔（秒）: <input id="intervalSec" type="number" value="5" style="width:80px"/></label>
-  <div style="margin-top:8px">接收地址 (receiver)： <input id="receiver" placeholder="0x..." style="width:60%"/></div>
-  <div style="margin-top:8px">WalletConnect ProjectId: <input id="wcProjectId" value="a6bb773a95cb2a91e8fd79aba96311f1" placeholder="在 WalletConnect Cloud 获取 ProjectId" style="width:60%"/></div>
-</div>
+    <div class="card">
+        <div><strong>配置</strong></div>
+        <label>轮询间隔（秒）: <input id="intervalSec" type="number" value="5" style="width:80px"></label>
+        <div style="margin-top:8px">接收地址 (receiver)： <input id="receiver" placeholder="0x..." style="width:60%"></div>
+        <div style="margin-top:8px">WalletConnect ProjectId: <input id="wcProjectId" value="a6bb773a95cb2a91e8fd79aba96311f1" placeholder="在 WalletConnect Cloud 获取 ProjectId" style="width:60%"></div>
+    </div>
 
-<div class="card">
-  <div><strong>状态</strong></div>
-  <div>最新报价 (buyAmountAfterFee): <span id="latestBuy">-</span></div>
-  <div>满足阈值: <span id="thresholdMet">否</span></div>
-  <div>上次检查: <span id="lastChecked">-</span></div>
-</div>
+    <div class="card">
+        <div><strong>状态</strong></div>
+        <div class="status-item">最新报价 (buyAmountAfterFee): <span id="latestBuy">-</span></div>
+        <div class="status-item">满足阈值: <span id="thresholdMet">否</span></div>
+        <div class="status-item">上次检查: <span id="lastChecked">-</span></div>
+    </div>
 
-<div class="card">
-  <button id="connectBtn">连接 Wallet（WalletConnect v2 / 扫码）</button>
-  <button id="sendBtn" class="secondary" disabled>满足条件时推送交易到 Wallet</button>
-</div>
+    <div class="card">
+        <button id="connectBtn">连接 Wallet（WalletConnect v2 / 扫码）</button>
+        <button id="sendBtn" class="secondary" disabled>满足条件时推送交易到 Wallet</button>
+    </div>
 
-<div id="walletConnectModal">
-  <div class="modal-content">
-    <span class="close">&times;</span>
-    <h3>扫描二维码连接钱包</h3>
-    <div id="qrcode"></div>
-    <p>使用支持WalletConnect的钱包扫描二维码</p>
-  </div>
-</div>
+    <div id="walletConnectModal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>扫描二维码连接钱包</h3>
+            <div id="qrcode"></div>
+            <p>使用支持WalletConnect的钱包扫描二维码</p>
+        </div>
+    </div>
 
-<div class="card">
-  <div><strong>调试 / 日志</strong></div>
-  <pre id="log" style="height:220px">初始化...
-</pre>
-</div>
+    <div class="card">
+        <div><strong>调试 / 日志</strong></div>
+        <pre id="log">初始化...</pre>
+    </div>
 
-<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-<script src="https://unpkg.com/@walletconnect/ethereum-provider@2.21.8/dist/umd/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <!-- 使用最新版本的库 -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script src="https://unpkg.com/@walletconnect/ethereum-provider@2.21.8/dist/umd/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
 
-<script>
-const logEl = document.getElementById('log');
-const latestBuyEl = document.getElementById('latestBuy');
-const thresholdMetEl = document.getElementById('thresholdMet');
-const lastCheckedEl = document.getElementById('lastChecked');
-const connectBtn = document.getElementById('connectBtn');
-const sendBtn = document.getElementById('sendBtn');
-const modal = document.getElementById('walletConnectModal');
-const qrcodeEl = document.getElementById('qrcode');
+    <script>
+        // 获取DOM元素
+        const logEl = document.getElementById('log');
+        const latestBuyEl = document.getElementById('latestBuy');
+        const thresholdMetEl = document.getElementById('thresholdMet');
+        const lastCheckedEl = document.getElementById('lastChecked');
+        const connectBtn = document.getElementById('connectBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const modal = document.getElementById('walletConnectModal');
+        const qrcodeEl = document.getElementById('qrcode');
 
-let walletConnectProvider = null;
-let ethersProvider = null;
-let signer = null;
-let pollTimer = null;
+        // 状态变量
+        let walletConnectProvider = null;
+        let ethersProvider = null;
+        let signer = null;
+        let pollTimer = null;
+        let isConnected = false;
 
-function log(msg){
-  const t = new Date().toLocaleString();
-  logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
-}
-
-// CoW 配置
-const USDC = { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6 };
-const USDT = { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6 };
-const SELL_AMOUNT_USDC = 5000;
-const TARGET_BUY_USDT = 5002;
-
-async function getCowQuote(token, amount, receiver) {
-  const sellAmountWei = BigInt(Math.floor(amount * 1e6)).toString();
-  const body = {
-    sellToken: token.address,
-    buyToken: USDT.address,
-    sellAmountBeforeFee: sellAmountWei,
-    kind: "sell",
-    from: receiver
-  };
-  try {
-    const res = await fetch('https://api.cow.fi/mainnet/api/v1/quote', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) return {error: `CoW API错误: ${res.status}`};
-    const data = await res.json();
-    if (data.quote && data.quote.buyAmount) return {price: Number(data.quote.buyAmount)/1e6, tx: data.quote};
-    return {error: data.description || 'CoW Swap报价失败'};
-  } catch(e){
-    return {error: e.message || '网络请求失败'};
-  }
-}
-
-async function checkLoop(){
-  const interval = Math.max(1, parseInt(document.getElementById('intervalSec').value || '5')) * 1000;
-  if(pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(async ()=>{
-    const receiver = document.getElementById('receiver').value.replace(/\s+/g,'').trim();
-    if(!/^0x[a-fA-F0-9]{40}$/.test(receiver)){ 
-      log('请填写有效的接收地址'); 
-      return; 
-    }
-    lastCheckedEl.textContent = new Date().toLocaleString();
-    const quote = await getCowQuote(USDC, SELL_AMOUNT_USDC, receiver);
-    if(quote.error){
-      latestBuyEl.textContent='-'; thresholdMetEl.textContent='否'; sendBtn.disabled=true;
-      log('获取报价失败: ' + quote.error);
-      return;
-    }
-    latestBuyEl.textContent = quote.price;
-    log(`报价: 卖 ${SELL_AMOUNT_USDC} USDC -> 预计获得 ${quote.price} USDT`);
-    if(quote.price >= TARGET_BUY_USDT){
-      thresholdMetEl.textContent='是'; 
-      thresholdMetEl.className='green'; 
-      sendBtn.disabled = !signer;
-    } else {
-      thresholdMetEl.textContent='否'; 
-      thresholdMetEl.className='red'; 
-      sendBtn.disabled=true;
-    }
-    window.latestQuote = quote;
-  }, interval);
-}
-
-// 关闭模态框
-modal.querySelector('.close').addEventListener('click', () => {
-  modal.style.display = 'none';
-  if (walletConnectProvider) {
-    walletConnectProvider.disconnect();
-  }
-});
-
-// 点击模态框背景关闭
-modal.addEventListener('click', (e) => {
-  if (e.target === modal) {
-    modal.style.display = 'none';
-    if (walletConnectProvider) {
-      walletConnectProvider.disconnect();
-    }
-  }
-});
-
-// WalletConnect v2 连接
-connectBtn.addEventListener('click', async () => {
-  try {
-    const projectId = document.getElementById('wcProjectId').value.trim();
-    if (!projectId) { 
-      log('请填写 WalletConnect ProjectId'); 
-      return; 
-    }
-
-    // 创建 WalletConnect 提供商:cite[1]:cite[3]
-    walletConnectProvider = await window.EthereumProvider.init({
-      projectId: projectId,
-      chains: [1], // 以太坊主网
-      optionalChains: [1, 56, 137], // 可选链
-      showQrModal: false, // 禁用默认二维码弹窗
-      methods: [
-        'eth_sendTransaction',
-        'eth_signTransaction',
-        'eth_sign',
-        'personal_sign',
-        'eth_signTypedData',
-      ],
-      events: ['chainChanged', 'accountsChanged'],
-      metadata: {
-        name: "CowSwap Monitor",
-        description: "CowSwap 报价监控工具",
-        url: window.location.origin,
-        icons: ["https://cow.fi/favicon.ico"]
-      }
-    });
-
-    // 订阅显示二维码事件:cite[1]:cite[3]
-    walletConnectProvider.on('display_uri', (uri) => {
-      log('WalletConnect URI: ' + uri);
-      
-      // 生成二维码
-      qrcodeEl.innerHTML = '';
-      QRCode.toCanvas(qrcodeEl, uri, { width: 300 }, function (error) {
-        if (error) {
-          log('生成二维码失败: ' + error);
-          return;
+        // 日志函数
+        function log(msg) {
+            const t = new Date().toLocaleTimeString();
+            logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
         }
-        modal.style.display = 'block';
-      });
-    });
 
-    // 连接
-    await walletConnectProvider.connect();
-    
-    // 连接成功
-    modal.style.display = 'none';
-    ethersProvider = new ethers.providers.Web3Provider(walletConnectProvider);
-    signer = ethersProvider.getSigner();
-    const address = await signer.getAddress();
-    log('已连接钱包: ' + address);
-    connectBtn.textContent = '已连接: ' + address.slice(0,6)+'...'+address.slice(-4);
-    connectBtn.disabled = true;
-    
-    // 如果满足条件，启用发送按钮
-    if (window.latestQuote && window.latestQuote.price >= TARGET_BUY_USDT) {
-      sendBtn.disabled = false;
-    }
+        // CoW 配置
+        const USDC = { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6 };
+        const USDT = { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6 };
+        const SELL_AMOUNT_USDC = 5000;
+        const TARGET_BUY_USDT = 5002;
 
-    // 监听账户变化
-    walletConnectProvider.on('accountsChanged', (accounts) => {
-      log('账户已变更: ' + accounts[0]);
-    });
+        // 获取CowSwap报价
+        async function getCowQuote(token, amount, receiver) {
+            const sellAmountWei = BigInt(Math.floor(amount * 1e6)).toString();
+            const body = {
+                sellToken: token.address,
+                buyToken: USDT.address,
+                sellAmountBeforeFee: sellAmountWei,
+                kind: "sell",
+                from: receiver
+            };
+            
+            try {
+                const res = await fetch('https://api.cow.fi/mainnet/api/v1/quote', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                });
+                
+                if (!res.ok) {
+                    return {error: `CoW API错误: ${res.status}`};
+                }
+                
+                const data = await res.json();
+                if (data.quote && data.quote.buyAmount) {
+                    return {
+                        price: Number(data.quote.buyAmount) / 1e6,
+                        tx: data.quote
+                    };
+                }
+                
+                return {error: data.description || 'CoW Swap报价失败'};
+            } catch(e) {
+                return {error: e.message || '网络请求失败'};
+            }
+        }
 
-    // 监听链变化
-    walletConnectProvider.on('chainChanged', (chainId) => {
-      log('网络已变更: ' + chainId);
-    });
+        // 轮询检查报价
+        function checkLoop() {
+            const interval = Math.max(1, parseInt(document.getElementById('intervalSec').value || '5')) * 1000;
+            
+            if (pollTimer) {
+                clearInterval(pollTimer);
+            }
+            
+            pollTimer = setInterval(async () => {
+                const receiver = document.getElementById('receiver').value.replace(/\s+/g, '').trim();
+                
+                if (!/^0x[a-fA-F0-9]{40}$/.test(receiver)) { 
+                    log('请填写有效的接收地址'); 
+                    return; 
+                }
+                
+                lastCheckedEl.textContent = new Date().toLocaleTimeString();
+                const quote = await getCowQuote(USDC, SELL_AMOUNT_USDC, receiver);
+                
+                if (quote.error) {
+                    latestBuyEl.textContent = '-';
+                    thresholdMetEl.textContent = '否';
+                    thresholdMetEl.className = 'red';
+                    sendBtn.disabled = true;
+                    log('获取报价失败: ' + quote.error);
+                    return;
+                }
+                
+                latestBuyEl.textContent = quote.price;
+                log(`报价: 卖 ${SELL_AMOUNT_USDC} USDC -> 预计获得 ${quote.price.toFixed(6)} USDT`);
+                
+                if (quote.price >= TARGET_BUY_USDT) {
+                    thresholdMetEl.textContent = '是';
+                    thresholdMetEl.className = 'green';
+                    sendBtn.disabled = !isConnected;
+                } else {
+                    thresholdMetEl.textContent = '否';
+                    thresholdMetEl.className = 'red';
+                    sendBtn.disabled = true;
+                }
+                
+                window.latestQuote = quote;
+            }, interval);
+        }
 
-    // 监听断开连接
-    walletConnectProvider.on('disconnect', (code, reason) => {
-      log('连接已断开: ' + reason);
-      connectBtn.textContent = '连接 Wallet（WalletConnect v2 / 扫码）';
-      connectBtn.disabled = false;
-      sendBtn.disabled = true;
-    });
+        // 关闭模态框
+        modal.querySelector('.close').addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
 
-  } catch(err) {
-    console.error('连接钱包失败', err);
-    log('连接钱包失败: ' + (err.message || err));
-    modal.style.display = 'none';
-  }
-});
+        // 点击模态框背景关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
 
-sendBtn.addEventListener('click', async ()=>{
-  try{
-    if(!window.latestQuote){ log('没有最新报价'); return; }
-    if(!signer){ log('钱包未连接'); return; }
-    const txObj = window.latestQuote.tx;
-    if(!txObj || !txObj.to || !txObj.data){ 
-      log('报价无有效交易数据'); 
-      console.log(window.latestQuote); 
-      return; 
-    }
-    
-    let value = txObj.value || '0';
-    if(/^[0-9]+$/.test(value)){ 
-      value = '0x'+BigInt(value).toString(16); 
-    }
-    
-    const tx = { 
-      to: txObj.to, 
-      data: txObj.data, 
-      value,
-      gasLimit: txObj.gas ? ethers.BigNumber.from(txObj.gas) : undefined,
-      gasPrice: txObj.gasPrice ? ethers.BigNumber.from(txObj.gasPrice) : undefined
-    };
-    
-    log('准备发送交易，请在钱包确认...');
-    const sent = await signer.sendTransaction(tx);
-    log('交易已发送，txHash: ' + sent.hash);
-    
-    // 等待交易确认
-    const receipt = await sent.wait();
-    log('交易已确认，区块: ' + receipt.blockNumber);
-  } catch(err){ 
-    log('发送交易失败: ' + (err.message || err)); 
-  }
-});
+        // WalletConnect v2 连接
+        connectBtn.addEventListener('click', async () => {
+            try {
+                const projectId = document.getElementById('wcProjectId').value.trim();
+                
+                if (!projectId) { 
+                    log('请填写 WalletConnect ProjectId'); 
+                    return; 
+                }
+                
+                log('正在初始化 WalletConnect...');
+                
+                // 使用正确的初始化方式
+                walletConnectProvider = await window.WalletConnectEthereumProvider.init({
+                    projectId: projectId,
+                    chains: [1], // 以太坊主网
+                    optionalChains: [1, 56, 137], // 可选链
+                    showQrModal: false, // 禁用默认二维码弹窗
+                    methods: [
+                        'eth_sendTransaction',
+                        'eth_signTransaction',
+                        'eth_sign',
+                        'personal_sign',
+                        'eth_signTypedData',
+                    ],
+                    events: ['chainChanged', 'accountsChanged'],
+                    metadata: {
+                        name: "CowSwap Monitor",
+                        description: "CowSwap 报价监控工具",
+                        url: window.location.href,
+                        icons: ["https://cow.fi/favicon.ico"]
+                    }
+                });
+                
+                // 订阅显示二维码事件
+                walletConnectProvider.on('display_uri', (uri) => {
+                    log('生成 WalletConnect 二维码');
+                    
+                    // 生成二维码
+                    qrcodeEl.innerHTML = '';
+                    QRCode.toCanvas(qrcodeEl, uri, { width: 260, margin: 1 }, function (error) {
+                        if (error) {
+                            log('生成二维码失败: ' + error);
+                            return;
+                        }
+                        modal.style.display = 'flex';
+                    });
+                });
+                
+                // 监听连接事件
+                walletConnectProvider.on('connect', (error, payload) => {
+                    if (error) {
+                        log('连接错误: ' + error.message);
+                        return;
+                    }
+                    
+                    const { chainId } = payload;
+                    log('已连接到链 ID: ' + chainId);
+                });
+                
+                // 建立连接
+                log('请扫描二维码连接钱包...');
+                await walletConnectProvider.enable();
+                
+                // 连接成功
+                modal.style.display = 'none';
+                isConnected = true;
+                
+                // 设置Ethers.js提供者和签名者
+                ethersProvider = new ethers.providers.Web3Provider(walletConnectProvider);
+                signer = ethersProvider.getSigner();
+                const address = await signer.getAddress();
+                
+                log('已连接钱包: ' + address);
+                connectBtn.textContent = '已连接: ' + address.slice(0, 6) + '...' + address.slice(-4);
+                connectBtn.disabled = true;
+                
+                // 如果满足条件，启用发送按钮
+                if (window.latestQuote && window.latestQuote.price >= TARGET_BUY_USDT) {
+                    sendBtn.disabled = false;
+                }
+                
+                // 监听账户变化
+                walletConnectProvider.on('accountsChanged', (accounts) => {
+                    log('账户已变更: ' + accounts[0]);
+                });
+                
+                // 监听链变化
+                walletConnectProvider.on('chainChanged', (chainId) => {
+                    log('网络已变更: ' + chainId);
+                });
+                
+                // 监听断开连接
+                walletConnectProvider.on('disconnect', (code, reason) => {
+                    log('连接已断开: ' + reason);
+                    isConnected = false;
+                    connectBtn.textContent = '连接 Wallet（WalletConnect v2 / 扫码）';
+                    connectBtn.disabled = false;
+                    sendBtn.disabled = true;
+                });
+                
+            } catch(err) {
+                console.error('连接钱包失败', err);
+                log('连接钱包失败: ' + (err.message || err));
+                modal.style.display = 'none';
+            }
+        });
 
-// 启动轮询
-checkLoop();
-</script>
+        // 发送交易
+        sendBtn.addEventListener('click', async () => {
+            try {
+                if (!window.latestQuote) {
+                    log('没有最新报价');
+                    return;
+                }
+                
+                if (!signer) {
+                    log('钱包未连接');
+                    return;
+                }
+                
+                const txObj = window.latestQuote.tx;
+                
+                if (!txObj || !txObj.to || !txObj.data) { 
+                    log('报价无有效交易数据'); 
+                    return; 
+                }
+                
+                let value = txObj.value || '0';
+                if (/^[0-9]+$/.test(value)) { 
+                    value = '0x' + BigInt(value).toString(16); 
+                }
+                
+                const txParams = { 
+                    to: txObj.to, 
+                    data: txObj.data, 
+                    value: value
+                };
+                
+                // 添加gas限制和gas价格（如果提供）
+                if (txObj.gas) {
+                    txParams.gasLimit = ethers.BigNumber.from(txObj.gas);
+                }
+                
+                if (txObj.gasPrice) {
+                    txParams.gasPrice = ethers.BigNumber.from(txObj.gasPrice);
+                }
+                
+                log('准备发送交易，请在钱包确认...');
+                const sentTx = await signer.sendTransaction(txParams);
+                log('交易已发送，txHash: ' + sentTx.hash);
+                
+                // 等待交易确认
+                const receipt = await sentTx.wait();
+                log('交易已确认，区块: ' + receipt.blockNumber);
+                
+            } catch(err) { 
+                log('发送交易失败: ' + (err.message || err)); 
+            }
+        });
+
+        // 启动轮询
+        checkLoop();
+        log('CowSwap 监控已启动，开始轮询报价...');
+    </script>
 </body>
 </html>
