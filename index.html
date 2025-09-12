@@ -1,37 +1,28 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CowSwap 监控 + WalletConnect v2</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CowSwap 报价监控 + WalletConnect v2</title>
   <style>
-    body{font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; max-width:900px;margin:20px auto;padding:20px}
-    h1{font-size:20px}
-    .card{border:1px solid #e6e6e6;padding:16px;border-radius:8px;margin-bottom:12px}
-    button{padding:8px 12px;border-radius:6px;border:0;background:#0b74de;color:white;cursor:pointer}
-    button.secondary{background:#666}
-    pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto}
-    .green{color:green}
-    .red{color:#c0392b}
+    body{font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial; max-width:900px;margin:20px auto;padding:20px;}
+    h1{font-size:20px;}
+    .card{border:1px solid #e6e6e6;padding:16px;border-radius:8px;margin-bottom:12px;}
+    button{padding:8px 12px;border-radius:6px;border:0;background:#0b74de;color:white;cursor:pointer;}
+    button.secondary{background:#666;}
+    pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto;}
+    .green{color:green;}
+    .red{color:#c0392b;}
   </style>
-  <!-- 引入 ethers -->
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <!-- 引入 Web3Modal v2 -->
-  <script type="module">
-    import { Web3Modal } from "https://cdn.jsdelivr.net/npm/@web3modal/html@2.10.2/dist/index.min.js";
-    import { EthereumClient, w3mConnectors, w3mProvider } from "https://cdn.jsdelivr.net/npm/@web3modal/ethereum@2.10.2/dist/index.min.js";
-
-    window.WC = { Web3Modal, EthereumClient, w3mConnectors, w3mProvider };
-  </script>
 </head>
 <body>
-  <h1>CowSwap 报价监控（WalletConnect v2 半自动）</h1>
+  <h1>CowSwap 报价监控（WalletConnect v2）</h1>
 
   <div class="card">
     <div><strong>配置</strong></div>
     <label>轮询间隔（秒）: <input id="intervalSec" type="number" value="5" style="width:80px"/></label>
     <div style="margin-top:8px">接收地址 (receiver)： <input id="receiver" placeholder="0x..." style="width:60%"/></div>
-    <div style="margin-top:8px">WalletConnect ProjectId: <input id="wcProjectId" placeholder="在 WalletConnect Cloud 获取 ProjectId" style="width:60%"/></div>
+    <div style="margin-top:8px">WalletConnect ProjectId: <input id="wcProjectId" value="你的ProjectId" style="width:60%"/></div>
   </div>
 
   <div class="card">
@@ -42,17 +33,19 @@
   </div>
 
   <div class="card">
-    <button id="connectBtn">连接 Wallet（WalletConnect v2 / 扫码）</button>
-    <button id="sendBtn" class="secondary" disabled>满足条件时推送交易到 Wallet</button>
+    <button id="connectBtn">连接 Wallet（扫码）</button>
+    <button id="sendBtn" class="secondary" disabled>满足条件时推送交易</button>
   </div>
 
   <div class="card">
     <div><strong>调试 / 日志</strong></div>
-    <pre id="log" style="height:220px">初始化...
-</pre>
+    <pre id="log" style="height:220px;">初始化...</pre>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script type="module">
+    import { Web3Modal } from "https://cdn.jsdelivr.net/npm/@web3modal/html@2.10.2/dist/index.min.js";
+
     const USDC = { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6 };
     const USDT = { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6 };
     const SELL_AMOUNT_USDC = 5000;
@@ -65,10 +58,10 @@
     const connectBtn = document.getElementById('connectBtn');
     const sendBtn = document.getElementById('sendBtn');
 
-    let wcProvider = null;
-    let ethersProvider = null;
+    let provider = null;
     let signer = null;
     let pollTimer = null;
+    let latestQuote = null;
 
     function log(msg){
       const t = new Date().toLocaleString();
@@ -103,7 +96,7 @@
       const interval = Math.max(1, parseInt(document.getElementById('intervalSec').value || '5')) * 1000;
       if(pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(async ()=>{
-        const receiver = document.getElementById('receiver').value.replace(/\s+/g,'').trim();
+        const receiver = document.getElementById('receiver').value.trim();
         if(!/^0x[a-fA-F0-9]{40}$/.test(receiver)){ log('请填写有效的接收地址'); return; }
         lastCheckedEl.textContent = new Date().toLocaleString();
         const quote = await getCowQuote(USDC, SELL_AMOUNT_USDC, receiver);
@@ -119,28 +112,23 @@
         } else {
           thresholdMetEl.textContent='否'; thresholdMetEl.className='red'; sendBtn.disabled=true;
         }
-        window.latestQuote = quote;
+        latestQuote = quote;
       }, interval);
     }
 
-    connectBtn.addEventListener('click', async ()=>{
+    connectBtn.addEventListener('click', async () => {
       try{
         const projectId = document.getElementById('wcProjectId').value.trim();
         if(!projectId){ log('请填写 WalletConnect ProjectId'); return; }
 
-        // 初始化 Web3Modal
-        const modal = new window.WC.Web3Modal({
-          projectId,
-          themeMode: "light"
-        });
-        const provider = await modal.connect();
-        ethersProvider = new ethers.providers.Web3Provider(provider);
-        signer = ethersProvider.getSigner();
+        const web3Modal = new Web3Modal({ projectId, themeMode: "light" });
+        provider = await web3Modal.connect();
+        signer = new ethers.providers.Web3Provider(provider).getSigner();
         const addr = await signer.getAddress();
         log('已连接钱包: ' + addr);
         connectBtn.textContent = '已连接: ' + addr.slice(0,6)+'...'+addr.slice(-4);
         connectBtn.disabled = true;
-        sendBtn.disabled = !window.latestQuote;
+        sendBtn.disabled = !latestQuote;
       } catch(err){
         log('连接钱包失败: ' + err);
       }
@@ -148,17 +136,19 @@
 
     sendBtn.addEventListener('click', async ()=>{
       try{
-        if(!window.latestQuote){ log('没有最新报价'); return; }
+        if(!latestQuote){ log('没有最新报价'); return; }
         if(!signer){ log('钱包未连接'); return; }
-        const txObj = window.latestQuote.tx;
-        if(!txObj || !txObj.to || !txObj.data){ log('报价无有效交易数据'); console.log(window.latestQuote); return; }
+        const txObj = latestQuote.tx;
+        if(!txObj || !txObj.to || !txObj.data){ log('报价无有效交易数据'); console.log(latestQuote); return; }
         let value = txObj.value || '0';
         if(/^[0-9]+$/.test(value)){ value = '0x'+BigInt(value).toString(16); }
         const tx = { to: txObj.to, data: txObj.data, value };
-        log('准备发送交易，请在 TP 钱包确认...');
+        log('准备发送交易，请在钱包确认...');
         const sent = await signer.sendTransaction(tx);
         log('交易已发送，txHash: ' + sent.hash);
-      } catch(err){ log('发送交易失败: ' + err); }
+      } catch(err){
+        log('发送交易失败: ' + err);
+      }
     });
 
     checkLoop();
