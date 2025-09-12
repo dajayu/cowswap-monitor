@@ -3,8 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CowSwap 监控 + 直接钱包连接</title>
+    <title>CowSwap 监控 + WalletConnect v2</title>
     <style>
+        /* 样式保持不变，可以沿用之前的样式 */
         body {
             font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
             max-width: 900px;
@@ -42,9 +43,6 @@
         button.secondary {
             background: #666;
         }
-        button.success {
-            background: #27ae60;
-        }
         pre {
             background: #f6f8fa;
             padding: 12px;
@@ -70,35 +68,16 @@
         .status-item {
             margin: 8px 0;
         }
-        .wallet-status {
-            padding: 10px;
-            border-radius: 6px;
-            margin: 10px 0;
-        }
-        .connected {
-            background: #e8f5e9;
-            border: 1px solid #c8e6c9;
-        }
-        .disconnected {
-            background: #ffebee;
-            border: 1px solid #ffcdd2;
-        }
     </style>
 </head>
 <body>
-    <h1>CowSwap 报价监控（直接钱包连接）</h1>
+    <h1>CowSwap 报价监控（WalletConnect v2 半自动，本地 SDK）</h1>
 
     <div class="card">
         <div><strong>配置</strong></div>
         <label>轮询间隔（秒）: <input id="intervalSec" type="number" value="5" style="width:80px"></label>
         <div style="margin-top:8px">接收地址 (receiver)： <input id="receiver" placeholder="0x..." style="width:60%"></div>
-    </div>
-
-    <div class="card">
-        <div><strong>钱包状态</strong></div>
-        <div id="walletStatus" class="wallet-status disconnected">未连接钱包</div>
-        <button id="connectBtn">连接钱包（MetaMask等）</button>
-        <button id="disconnectBtn" class="secondary" disabled>断开连接</button>
+        <div style="margin-top:8px">WalletConnect ProjectId: <input id="wcProjectId" value="a6bb773a95cb2a91e8fd79aba96311f1" placeholder="在 WalletConnect Cloud 获取 ProjectId" style="width:60%"></div>
     </div>
 
     <div class="card">
@@ -109,7 +88,8 @@
     </div>
 
     <div class="card">
-        <button id="sendBtn" class="secondary" disabled>满足条件时推送交易到钱包</button>
+        <button id="connectBtn">连接 Wallet（WalletConnect v2 / 扫码）</button>
+        <button id="sendBtn" class="secondary" disabled>满足条件时推送交易到 Wallet</button>
     </div>
 
     <div class="card">
@@ -119,6 +99,8 @@
 
     <!-- 引入ethers -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <!-- 引入Web3Modal独立版本 -->
+    <script src="https://unpkg.com/@web3modal/standalone@2.10.0/dist/index.js"></script>
 
     <script>
         // 获取DOM元素
@@ -127,37 +109,19 @@
         const thresholdMetEl = document.getElementById('thresholdMet');
         const lastCheckedEl = document.getElementById('lastChecked');
         const connectBtn = document.getElementById('connectBtn');
-        const disconnectBtn = document.getElementById('disconnectBtn');
         const sendBtn = document.getElementById('sendBtn');
-        const walletStatus = document.getElementById('walletStatus');
 
         // 状态变量
         let ethersProvider = null;
         let signer = null;
         let pollTimer = null;
         let isConnected = false;
+        let web3Modal = null;
 
         // 日志函数
         function log(msg) {
             const t = new Date().toLocaleTimeString();
             logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
-        }
-
-        // 更新钱包状态显示
-        function updateWalletStatus(connected, address = '') {
-            isConnected = connected;
-            if (connected) {
-                walletStatus.textContent = `已连接: ${address}`;
-                walletStatus.className = 'wallet-status connected';
-                connectBtn.disabled = true;
-                disconnectBtn.disabled = false;
-            } else {
-                walletStatus.textContent = '未连接钱包';
-                walletStatus.className = 'wallet-status disconnected';
-                connectBtn.disabled = false;
-                disconnectBtn.disabled = true;
-                sendBtn.disabled = true;
-            }
         }
 
         // CoW 配置
@@ -247,27 +211,39 @@
             }, interval);
         }
 
-        // 连接钱包
+        // WalletConnect v2 连接
         connectBtn.addEventListener('click', async () => {
             try {
-                // 检查是否安装了以太坊钱包
-                if (typeof window.ethereum === 'undefined') {
-                    log('未检测到以太坊钱包。请安装MetaMask或其他兼容钱包。');
-                    return;
+                const projectId = document.getElementById('wcProjectId').value.trim();
+                
+                if (!projectId) { 
+                    log('请填写 WalletConnect ProjectId'); 
+                    return; 
                 }
                 
-                log('请求连接钱包...');
+                log('正在初始化 Web3Modal...');
                 
-                // 请求账户访问权限
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                // 初始化Web3Modal
+                web3Modal = new window.Web3Modal.default({
+                    projectId,
+                    chains: [1],
+                    enableExplorer: true,
+                });
                 
-                // 创建Ethers提供者和签名者
-                ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
+                // 打开连接模态框
+                const provider = await web3Modal.connect();
+                
+                // 连接成功
+                isConnected = true;
+                
+                // 设置Ethers.js提供者和签名者
+                ethersProvider = new ethers.providers.Web3Provider(provider);
                 signer = ethersProvider.getSigner();
                 const address = await signer.getAddress();
                 
                 log('已连接钱包: ' + address);
-                updateWalletStatus(true, address);
+                connectBtn.textContent = '已连接: ' + address.slice(0, 6) + '...' + address.slice(-4);
+                connectBtn.disabled = true;
                 
                 // 如果满足条件，启用发送按钮
                 if (window.latestQuote && window.latestQuote.price >= TARGET_BUY_USDT) {
@@ -275,37 +251,28 @@
                 }
                 
                 // 监听账户变化
-                window.ethereum.on('accountsChanged', (accounts) => {
-                    if (accounts.length === 0) {
-                        log('钱包已断开连接');
-                        updateWalletStatus(false);
-                    } else {
-                        log('账户已变更: ' + accounts[0]);
-                        signer = ethersProvider.getSigner();
-                        updateWalletStatus(true, accounts[0]);
-                    }
+                provider.on('accountsChanged', (accounts) => {
+                    log('账户已变更: ' + accounts[0]);
                 });
                 
                 // 监听链变化
-                window.ethereum.on('chainChanged', (chainId) => {
+                provider.on('chainChanged', (chainId) => {
                     log('网络已变更: ' + parseInt(chainId, 16));
-                    // 重新初始化提供者
-                    ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
-                    signer = ethersProvider.getSigner();
+                });
+                
+                // 监听断开连接
+                provider.on('disconnect', (code, reason) => {
+                    log('连接已断开: ' + reason);
+                    isConnected = false;
+                    connectBtn.textContent = '连接 Wallet（WalletConnect v2 / 扫码）';
+                    connectBtn.disabled = false;
+                    sendBtn.disabled = true;
                 });
                 
             } catch(err) {
                 console.error('连接钱包失败', err);
                 log('连接钱包失败: ' + (err.message || err));
             }
-        });
-
-        // 断开钱包连接
-        disconnectBtn.addEventListener('click', () => {
-            // 对于大多数浏览器钱包，我们不能真正"断开"连接
-            // 但可以重置我们的状态
-            updateWalletStatus(false);
-            log('已断开钱包连接');
         });
 
         // 发送交易
@@ -361,28 +328,9 @@
             }
         });
 
-        // 页面加载完成后初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            // 检查是否已经连接了钱包
-            if (typeof window.ethereum !== 'undefined') {
-                window.ethereum.request({ method: 'eth_accounts' })
-                    .then(accounts => {
-                        if (accounts.length > 0) {
-                            // 自动连接已授权的钱包
-                            ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
-                            signer = ethersProvider.getSigner();
-                            signer.getAddress().then(address => {
-                                log('检测到已连接的钱包: ' + address);
-                                updateWalletStatus(true, address);
-                            });
-                        }
-                    });
-            }
-            
-            // 启动轮询
-            checkLoop();
-            log('CowSwap 监控已启动，开始轮询报价...');
-        });
+        // 启动轮询
+        checkLoop();
+        log('CowSwap 监控已启动，开始轮询报价...');
     </script>
 </body>
 </html>
