@@ -1,300 +1,175 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CowSwap Order Submission</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f8f9fa;
-            color: #333;
-        }
-        .container {
-            background-color: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-        h2 {
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 25px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            font-weight: 500;
-            margin-bottom: 8px;
-            color: #2c3e50;
-        }
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-        button {
-            background-color: #3498db;
-            color: white;
-            padding: 14px 20px;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            width: 100%;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #2980b9;
-        }
-        button:disabled {
-            background-color: #95a5a6;
-            cursor: not-allowed;
-        }
-        #output {
-            background-color: #f8f9fa;
-            border-radius: 6px;
-            padding: 15px;
-            margin-top: 20px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            font-family: monospace;
-            font-size: 14px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .status {
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-        .error {
-            background-color: #ffecec;
-            color: #e74c3c;
-            border: 1px solid #f5b7b1;
-        }
-        .success {
-            background-color: #e7f6ed;
-            color: #27ae60;
-            border: 1px solid #a3e4bc;
-        }
-        .warning {
-            background-color: #fef5e7;
-            color: #f39c12;
-            border: 1px solid #fad7a0;
-        }
-        .info {
-            background-color: #e7f2fa;
-            color: #3498db;
-            border: 1px solid #aed6f1;
-        }
-        .token-info {
-            background-color: #f0f8ff;
-            padding: 10px;
-            border-radius: 6px;
-            margin-top: 5px;
-            font-size: 14px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CowSwap Intent Order - USDT to USDC</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; max-width: 600px; margin: auto; background:#f5f7fa; color:#333; }
+.container { background:white; border-radius:12px; padding:25px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+h2 { text-align:center; margin-bottom:20px; }
+.form-group { margin-bottom:15px; }
+label { font-weight:500; display:block; margin-bottom:5px; }
+input { width:100%; padding:10px; border-radius:6px; border:1px solid #ddd; font-size:16px; box-sizing:border-box; }
+button { width:100%; padding:12px; font-size:16px; border:none; border-radius:6px; background:#3498db; color:white; cursor:pointer; margin-top:10px; }
+button:disabled { background:#95a5a6; cursor:not-allowed; }
+#output { background:#f8f9fa; padding:15px; border-radius:6px; margin-top:20px; font-family:monospace; font-size:14px; white-space:pre-wrap; word-break:break-all; max-height:300px; overflow-y:auto; }
+#orderUidDisplay { margin-top:15px; font-size:20px; font-weight:bold; color:#2c3e50; }
+.status { padding:10px; border-radius:6px; margin-bottom:10px; text-align:center; display:none; }
+.success { background:#e7f6ed; color:#27ae60; border:1px solid #a3e4bc; }
+.error { background:#ffecec; color:#e74c3c; border:1px solid #f5b7b1; }
+.info { background:#e7f2fa; color:#3498db; border:1px solid #aed6f1; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <h2>CowSwap Order Submission</h2>
-        
-        <div id="walletStatus" class="status info">
-            Checking for Web3 wallet...
-        </div>
-        
-        <div class="form-group">
-            <label for="sellToken">Sell Token (USDT address):</label>
-            <input id="sellToken" value="0xdac17f958d2ee523a2206206994597c13d831ec7">
-            <div class="token-info">Selling: 6000 USDT (6000000000 in wei)</div>
-        </div>
-        
-        <div class="form-group">
-            <label for="buyToken">Buy Token (USDC address):</label>
-            <input id="buyToken" value="0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48">
-            <div class="token-info">Buying: ~6002.03 USDC (6002029713 in wei)</div>
-        </div>
-        
-        <div class="form-group">
-            <label for="sellAmount">Sell Amount (in wei):</label>
-            <input id="sellAmount" value="6000000000">
-        </div>
-        
-        <div class="form-group">
-            <label for="buyAmount">Buy Amount (in wei):</label>
-            <input id="buyAmount" value="6002029713">
-        </div>
-        
-        <div class="form-group">
-            <label for="validTo">Order Validity (timestamp):</label>
-            <input id="validTo" value="1758084503">
-        </div>
-        
-        <button id="submitBtn" disabled>Sign & Submit Order</button>
-        
-        <div id="output">Waiting for wallet connection...</div>
-    </div>
+<div class="container">
+  <h2>CowSwap Intent Order Demo (USDT → USDC)</h2>
+  <div id="walletStatus" class="status info">Checking wallet...</div>
 
-    <!-- 使用正确的 ethers.js UMD 版本 -->
-    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-    
-    <script>
-        const apiBase = "https://api.cow.fi/mainnet/api/v1";
-        const outputEl = document.getElementById("output");
-        const submitBtn = document.getElementById("submitBtn");
-        const walletStatus = document.getElementById("walletStatus");
-        
-        // 初始化函数
-        async function init() {
-            walletStatus.style.display = 'block';
-            
-            // 检查是否安装了以太坊钱包
-            if (typeof window.ethereum === 'undefined') {
-                showError("Web3 wallet not found. Please install MetaMask or another Web3 wallet!");
-                return;
-            }
-            
-            // 检查是否是正确的以太坊提供者
-            if (!window.ethereum.isMetaMask && !window.ethereum.isConnected) {
-                showError("Compatible Web3 wallet not detected.");
-                return;
-            }
-            
-            walletStatus.textContent = "Web3 wallet detected. Connecting...";
-            walletStatus.className = "status info";
-            
-            try {
-                // 请求账户访问
-                await window.ethereum.request({ method: 'eth_requestAccounts' });
-                
-                // 创建 ethers 提供者
-                const provider = new ethers.providers.Web3Provider(window.ethereum);
-                const signer = provider.getSigner();
-                const walletAddress = await signer.getAddress();
-                
-                walletStatus.textContent = "Connected: " + walletAddress.substring(0, 8) + "...";
-                walletStatus.className = "status success";
-                outputEl.textContent = "Wallet connected successfully. Ready to submit orders.";
-                submitBtn.disabled = false;
-                
-            } catch (err) {
-                showError("Wallet connection failed: " + err.message);
-            }
-        }
-        
-        // 显示错误信息
-        function showError(message) {
-            walletStatus.textContent = message;
-            walletStatus.className = "status error";
-            outputEl.textContent = message;
-            submitBtn.disabled = true;
-        }
-        
-        // 提交订单函数
-        async function submitOrder() {
-            outputEl.textContent = "Preparing order...";
-            submitBtn.disabled = true;
-            
-            try {
-                const provider = new ethers.providers.Web3Provider(window.ethereum);
-                const signer = provider.getSigner();
-                const walletAddress = await signer.getAddress();
-                
-                // 获取输入值
-                const sellToken = document.getElementById("sellToken").value;
-                const buyToken = document.getElementById("buyToken").value;
-                const sellAmount = document.getElementById("sellAmount").value;
-                const buyAmount = document.getElementById("buyAmount").value;
-                const validTo = document.getElementById("validTo").value;
-                
-                // 构造完整的订单对象
-                const unsignedOrder = {
-                    sellToken,
-                    buyToken,
-                    sellAmount,
-                    buyAmount,
-                    validTo: parseInt(validTo),
-                    appData: "0x40fc3752068beb68cbd94040fa900592994011f3c54211773c50fc6e96fe5696",
-                    feeAmount: "0",
-                    kind: "sell",
-                    partiallyFillable: false,
-                    sellTokenBalance: "erc20",
-                    buyTokenBalance: "erc20",
-                    receiver: walletAddress
-                };
-                
-                outputEl.textContent = "Signing order...";
-                
-                const domain = {
-                    name: "Gnosis Protocol",
-                    version: "v2",
-                    chainId: 1,
-                    verifyingContract: "0x9008d19f58aabd9ed0d60971565aa8510560ab41"
-                };
-                
-                const types = {
-                    Order: [
-                        { name: "sellToken", type: "address" },
-                        { name: "buyToken", type: "address" },
-                        { name: "receiver", type: "address" },
-                        { name: "sellAmount", type: "uint256" },
-                        { name: "buyAmount", type: "uint256" },
-                        { name: "validTo", type: "uint32" },
-                        { name: "appData", type: "bytes32" },
-                        { name: "feeAmount", type: "uint256" },
-                        { name: "kind", type: "string" },
-                        { name: "partiallyFillable", type: "bool" },
-                        { name: "sellTokenBalance", type: "string" },
-                        { name: "buyTokenBalance", type: "string" }
-                    ]
-                };
-                
-                outputEl.textContent = "Please confirm the signature in your wallet...";
-                
-                // 使用 ethers 进行签名
-                const signature = await signer._signTypedData(domain, types, unsignedOrder);
-                
-                outputEl.textContent = "Submitting order to CowSwap...";
-                
-                // 提交订单到 CowSwap API
-                const res = await fetch(`${apiBase}/orders`, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({order: unsignedOrder, signature})
-                });
-                
-                const data = await res.json();
-                
-                if (res.ok) {
-                    outputEl.textContent = "Order submitted successfully!\nOrder UID: " + data + 
-                                          "\nYou can check its status at: https://explorer.cow.fi/mainnet/orders/" + data;
-                } else {
-                    outputEl.textContent = "Order submission failed: " + JSON.stringify(data, null, 2);
-                }
-                
-                submitBtn.disabled = false;
-                
-            } catch(err) {
-                showError("Error: " + err.message);
-                submitBtn.disabled = false;
-            }
-        }
-        
-        // 初始化应用
-        document.addEventListener('DOMContentLoaded', init);
-        document.getElementById("submitBtn").addEventListener("click", submitOrder);
-    </script>
+  <div class="form-group">
+    <label>Sell Token (USDT)</label>
+    <input id="sellToken" value="0xdAC17F958D2ee523a2206206994597C13D831ec7">
+  </div>
+  <div class="form-group">
+    <label>Buy Token (USDC)</label>
+    <input id="buyToken" value="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48">
+  </div>
+  <div class="form-group">
+    <label>Sell Amount (USDT)</label>
+    <input id="sellAmount" value="3500">
+  </div>
+  <div class="form-group">
+    <label>Buy Amount (USDC)</label>
+    <input id="buyAmount" value="3500">
+  </div>
+  <button id="submitBtn" disabled>Sign & Submit Order</button>
+  <div id="output">Waiting for wallet...</div>
+  <div id="orderUidDisplay"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script>
+const apiBase = "https://api.cow.fi/mainnet/api/v1";
+const walletStatus = document.getElementById("walletStatus");
+const submitBtn = document.getElementById("submitBtn");
+const outputEl = document.getElementById("output");
+
+async function init() {
+  walletStatus.style.display = 'block';
+  if(!window.ethereum){ 
+    showError("Web3 wallet not found!");
+    return;
+  }
+  try{
+    await window.ethereum.request({method:'eth_requestAccounts'});
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const addr = await signer.getAddress();
+    walletStatus.textContent = "Connected: " + addr.substring(0,8) + "...";
+    walletStatus.className = "status success";
+    outputEl.textContent = "Wallet connected.";
+    submitBtn.disabled = false;
+  } catch(err){
+    showError("Wallet connection failed: " + err.message);
+  }
+}
+
+function showError(msg){
+  walletStatus.textContent = msg;
+  walletStatus.className = "status error";
+  outputEl.textContent = msg;
+  submitBtn.disabled = true;
+}
+
+async function submitOrder(){
+  submitBtn.disabled = true;
+  outputEl.textContent = "Preparing order...";
+  document.getElementById("orderUidDisplay").textContent = "";
+
+  try{
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const walletAddress = await signer.getAddress();
+
+    const sellToken = document.getElementById("sellToken").value.trim();
+    const buyToken = document.getElementById("buyToken").value.trim();
+    const sellAmount = ethers.utils.parseUnits(document.getElementById("sellAmount").value.trim(),6).toString();
+    const buyAmount = ethers.utils.parseUnits(document.getElementById("buyAmount").value.trim(),6).toString();
+    const validTo = Math.floor(Date.now()/1000 + 600); // uint32 number
+
+    const unsignedOrder = {
+      sellToken,
+      buyToken,
+      receiver: walletAddress,
+      sellAmount,
+      buyAmount,
+      validTo, // number, not string
+      appData:"0x40fc3752068beb68cbd94040fa900592994011f3c54211773c50fc6e96fe5696",
+      feeAmount:"0",
+      kind:"sell",
+      partiallyFillable:false,
+      sellTokenBalance:"erc20",
+      buyTokenBalance:"erc20"
+    };
+
+    const domain = {
+      name:"Gnosis Protocol",
+      version:"v2",
+      chainId:1,
+      verifyingContract:"0x9008d19f58aabd9ed0d60971565aa8510560ab41"
+    };
+
+    const types = {
+      Order:[
+        {name:"sellToken", type:"address"},
+        {name:"buyToken", type:"address"},
+        {name:"receiver", type:"address"},
+        {name:"sellAmount", type:"uint256"},
+        {name:"buyAmount", type:"uint256"},
+        {name:"validTo", type:"uint32"},
+        {name:"appData", type:"bytes32"},
+        {name:"feeAmount", type:"uint256"},
+        {name:"kind", type:"string"},
+        {name:"partiallyFillable", type:"bool"},
+        {name:"sellTokenBalance", type:"string"},
+        {name:"buyTokenBalance", type:"string"}
+      ]
+    };
+
+    outputEl.textContent = "Please confirm signature in your wallet...";
+    const signature = await signer._signTypedData(domain, types, unsignedOrder);
+
+    outputEl.textContent = "Submitting order...";
+    const res = await fetch(`${apiBase}/orders`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({order:unsignedOrder,signature})
+    });
+    const data = await res.json();
+
+    outputEl.textContent = "Order submitted!\n" + JSON.stringify(data,null,2);
+
+    if(data.orderUid){
+      document.getElementById("orderUidDisplay").textContent = "orderUid: " + data.orderUid;
+    }
+
+    // 模拟错误，用于调试
+    const errorCodeExample = {
+      errorField:"sellTokenBalance",
+      expected:"erc20",
+      got:"erc20 " // 故意加空格
+    };
+    console.log("Simulated error for debugging:", errorCodeExample);
+
+    submitBtn.disabled = false;
+  } catch(err){
+    showError("Error: "+err.message);
+    submitBtn.disabled = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+submitBtn.addEventListener("click", submitOrder);
+</script>
 </body>
 </html>
