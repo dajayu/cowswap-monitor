@@ -77,7 +77,7 @@ async function getCowQuote(token, amount) {
   const sellAmountWei = BigInt(Math.floor(amount * 1e18)).toString();
   const body = {
     sellToken: token.address,
-    buyToken: "0xdAC17F958D2ee523a2206206994597c13d831ec7", // USDT
+    buyToken: "0xdAC17F958D2ee523a2206206994597c13d831ec7",
     sellAmountBeforeFee: sellAmountWei,
     kind: "sell",
     from: "0x000000000000000000000000000000000000dead"
@@ -94,7 +94,7 @@ async function getCowQuote(token, amount) {
     }
     const data = await res.json();
     if (data.quote && data.quote.buyAmount) {
-      return {price: Number(data.quote.buyAmount) / 1e6, raw: data.quote};
+      return {priceRaw: data.quote.buyAmount, raw: data.quote};
     }
     return {error: data.description || "CoW Swap报价失败"};
   } catch(e) {
@@ -108,19 +108,20 @@ async function getQuote() {
   outputEl.textContent = "正在获取CowSwap报价...";
   const token = { address: "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" };
   const result = await getCowQuote(token, sellAmount);
-  if (result.price) {
+  if (result.priceRaw) {
+    const buyAmount = ethers.utils.formatUnits(result.priceRaw, 6);
     currentQuote = result.raw;
     quoteDetails.innerHTML = `<p>卖出: ${sellAmount} USDT</p>
-                              <p>可获得: ${result.price.toFixed(6)} USDC</p>`;
-    if (result.price >= minBuyAmount) {
+                              <p>可获得: ${buyAmount} USDC</p>`;
+    if (parseFloat(buyAmount) >= minBuyAmount) {
       conditionCheck.className = "condition-met";
-      conditionCheck.textContent = `✅ 条件满足: ${result.price.toFixed(6)} ≥ ${minBuyAmount}`;
+      conditionCheck.textContent = `✅ 条件满足: ${buyAmount} ≥ ${minBuyAmount}`;
     } else {
       conditionCheck.className = "condition-not-met";
-      conditionCheck.textContent = `❌ 条件未满足: ${result.price.toFixed(6)} < ${minBuyAmount}`;
+      conditionCheck.textContent = `❌ 条件未满足: ${buyAmount} < ${minBuyAmount}`;
     }
     quoteResult.style.display = "block";
-    outputEl.textContent = `最新报价: ${result.price.toFixed(6)} USDC`;
+    outputEl.textContent = `最新报价: ${buyAmount} USDC`;
   } else {
     outputEl.textContent = "报价错误: " + result.error;
   }
