@@ -1,209 +1,246 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CowSwap 条件交易工具</title>
-  <style>
-    /* 样式保持不变 */
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CowSwap 条件交易工具</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 800px; margin: 0 auto; padding: 20px; background-color: #1a1a1a; color: #e6e6e6;
+  }
+  .container { background-color: #2d2d2d; border-radius: 12px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);}
+  h2 { color:#4cc9f0; text-align:center; margin-bottom:25px; }
+  .form-group { margin-bottom:20px; }
+  label { display:block; margin-bottom:8px; font-weight:500; }
+  input { width:100%; padding:12px; border-radius:6px; border:1px solid #444; background-color:#3d3d3d; color:#e6e6e6; font-size:16px; }
+  button { background:linear-gradient(135deg,#4cc9f0,#4361ee); color:white; padding:14px 20px; border:none; border-radius:6px; font-size:16px; font-weight:600; width:100%; cursor:pointer; margin-top:10px; transition:all 0.3s; }
+  button:hover:not(:disabled){ transform: translateY(-2px); box-shadow:0 4px 12px rgba(76,201,240,0.3);}
+  button:disabled { background:#555; cursor:not-allowed; }
+  #output { margin-top:20px; padding:15px; background-color:#3d3d3d; border-radius:6px; font-family:monospace; max-height:300px; overflow-y:auto; }
+  .status { padding:10px; border-radius:6px; margin-bottom:15px; text-align:center; }
+  .success { background-color:#2a5e3d; color:#7bffb3; border:1px solid #52ff95; }
+  .error { background-color:#5e2a2a; color:#ff7b7b; border:1px solid #ff5252; }
+  .info { background-color:#2a3d5e; color:#7bacff; border:1px solid #5294ff; }
+  .quote-result { background-color:#3d5c4c; padding:15px; border-radius:6px; margin-top:15px; }
+  .condition-met { background-color:#2a5e3d; color:#7bffb3; padding:10px; border-radius:6px; margin-top:10px; }
+  .condition-not-met { background-color:#5e2a2a; color:#ff7b7b; padding:10px; border-radius:6px; margin-top:10px; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h2>CowSwap 条件交易工具</h2>
+<div class="container">
+<h2>CowSwap 条件交易工具</h2>
 
-    <div id="walletStatus" class="status info">正在检查Web3钱包...</div>
+<div id="walletStatus" class="status info">正在检查Web3钱包...</div>
 
-    <div class="form-group">
-      <label for="sellAmount">卖出数量 (USDT):</label>
-      <input id="sellAmount" type="number" value="6000" step="0.01">
-    </div>
+<div class="form-group">
+<label for="sellAmount">卖出数量 (USDT):</label>
+<input id="sellAmount" type="number" value="6000" step="0.01">
+</div>
 
-    <div class="form-group">
-      <label for="minBuyAmount">最低期望获得 (USDC):</label>
-      <input id="minBuyAmount" type="number" value="6004" step="0.01">
-    </div>
+<div class="form-group">
+<label for="minBuyAmount">最低期望获得 (USDC):</label>
+<input id="minBuyAmount" type="number" value="6004" step="0.01">
+</div>
 
-    <div class="form-group">
-      <label for="refreshInterval">自动刷新间隔 (秒):</label>
-      <input id="refreshInterval" type="number" value="30" step="5">
-    </div>
+<div class="form-group">
+<label for="refreshInterval">自动刷新间隔 (秒):</label>
+<input id="refreshInterval" type="number" value="30" step="5">
+</div>
 
-    <button id="getQuoteBtn">获取CowSwap报价</button>
-    <button id="startAutoBtn">开始自动刷新</button>
-    <button id="stopAutoBtn" disabled>停止自动刷新</button>
+<button id="getQuoteBtn" disabled>获取CowSwap报价</button>
+<button id="startAutoBtn">开始自动刷新</button>
+<button id="stopAutoBtn" disabled>停止自动刷新</button>
+<button id="submitBtn" disabled>签名并提交当前报价订单</button>
 
-    <div id="quoteResult" class="quote-result" style="display:none;">
-      <h3>报价结果</h3>
-      <div id="quoteDetails"></div>
-      <div id="conditionCheck"></div>
-    </div>
+<div id="quoteResult" class="quote-result" style="display:none;">
+<h3>报价结果</h3>
+<div id="quoteDetails"></div>
+<div id="conditionCheck"></div>
+</div>
 
-    <div id="output">等待获取报价...</div>
-  </div>
+<div id="output">等待获取报价...</div>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script>
-    const apiBase = "https://api.cow.fi/mainnet/api/v1/quote";
-    const orderBookApi = "https://api.cow.fi/mainnet/api/v1/order";
-    const outputEl = document.getElementById("output");
-    const getQuoteBtn = document.getElementById("getQuoteBtn");
-    const startAutoBtn = document.getElementById("startAutoBtn");
-    const stopAutoBtn = document.getElementById("stopAutoBtn");
-    const quoteResult = document.getElementById("quoteResult");
-    const quoteDetails = document.getElementById("quoteDetails");
-    const conditionCheck = document.getElementById("conditionCheck");
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script>
+const walletStatus = document.getElementById("walletStatus");
+const outputEl = document.getElementById("output");
+const getQuoteBtn = document.getElementById("getQuoteBtn");
+const startAutoBtn = document.getElementById("startAutoBtn");
+const stopAutoBtn = document.getElementById("stopAutoBtn");
+const submitBtn = document.getElementById("submitBtn");
+const quoteResult = document.getElementById("quoteResult");
+const quoteDetails = document.getElementById("quoteDetails");
+const conditionCheck = document.getElementById("conditionCheck");
 
-    let autoInterval = null;
-    let currentQuote = null;
+let provider, signer, walletAddress;
+let autoInterval = null;
+let currentQuote = null;
 
-    async function getCowQuote(token, amount) {
-      const sellAmountWei = BigInt(Math.floor(amount * 1e6)).toString(); // 使用6位小数
-      const body = {
-        sellToken: token.address,
-        buyToken: "0xdAC17F958D2ee523a2206206994597c13d831ec7", // USDC 地址
-        sellAmountBeforeFee: sellAmountWei,
-        kind: "sell",
-        from: "0x000000000000000000000000000000000000dead"
-      };
-      try {
-        const res = await fetch(apiBase, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(body)
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          return {error: `CoW API错误: ${res.status} - ${text}`};
-        }
-        const data = await res.json();
-        if (data.quote && data.quote.buyAmount) {
-          return {priceRaw: data.quote.buyAmount, raw: data.quote};
-        }
-        return {error: data.description || "CoW Swap报价失败"};
-      } catch(e) {
-        return {error: e.message || "网络请求失败"};
-      }
+// 初始化钱包
+async function init() {
+  if(typeof window.ethereum === "undefined"){
+    walletStatus.textContent="未检测到Web3钱包！";
+    walletStatus.className="status error";
+    return;
+  }
+  try{
+    await window.ethereum.request({method:"eth_requestAccounts"});
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    signer = provider.getSigner();
+    walletAddress = await signer.getAddress();
+    walletStatus.textContent="已连接钱包: "+walletAddress.substring(0,8)+"...";
+    walletStatus.className="status success";
+    getQuoteBtn.disabled = false;
+  }catch(err){
+    walletStatus.textContent="钱包连接失败："+err.message;
+    walletStatus.className="status error";
+  }
+}
+
+// 获取报价
+async function getQuote(){
+  const sellAmount = parseFloat(document.getElementById("sellAmount").value);
+  const minBuyAmount = parseFloat(document.getElementById("minBuyAmount").value);
+  outputEl.textContent="正在获取CowSwap报价...";
+  getQuoteBtn.disabled = true;
+
+  try{
+    const sellToken = {address:"0xdAC17F958D2ee523a2206206994597c13d831ec7"}; // USDT
+    const sellAmountWei = ethers.utils.parseUnits(sellAmount.toString(),6).toString();
+    const body = {
+      sellToken:sellToken.address,
+      buyToken:"0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", // USDC
+      sellAmountBeforeFee:sellAmountWei,
+      kind:"sell",
+      from:walletAddress
+    };
+
+    const res = await fetch("https://api.cow.fi/mainnet/api/v1/quote",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(body)
+    });
+
+    if(!res.ok){
+      const text = await res.text();
+      outputEl.textContent="获取报价失败: "+res.status+" "+text;
+      return;
     }
 
-    async function getQuote() {
-      const sellAmount = parseFloat(document.getElementById("sellAmount").value);
-      const minBuyAmount = parseFloat(document.getElementById("minBuyAmount").value);
-      outputEl.textContent = "正在获取CowSwap报价...";
-      const token = { address: "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" }; // USDT 地址
-      const result = await getCowQuote(token, sellAmount);
-      if (result.priceRaw) {
-        const buyAmount = ethers.utils.formatUnits(result.priceRaw, 6); // 格式化为6位小数
-        currentQuote = result.raw;
-        quoteDetails.innerHTML = `<p>卖出: ${sellAmount} USDT</p>
-                                  <p>可获得: ${buyAmount} USDC</p>`;
-        if (parseFloat(buyAmount) >= minBuyAmount) {
-          conditionCheck.className = "condition-met";
-          conditionCheck.textContent = `✅ 条件满足: ${buyAmount} ≥ ${minBuyAmount}`;
-          await signAndSubmitOrder(sellAmount, buyAmount);
-        } else {
-          conditionCheck.className = "condition-not-met";
-          conditionCheck.textContent = `❌ 条件未满足: ${buyAmount} < ${minBuyAmount}`;
-        }
-        quoteResult.style.display = "block";
-        outputEl.textContent = `最新报价: ${buyAmount} USDC`;
-      } else {
-        outputEl.textContent = "报价错误: " + result.error;
-      }
-    }
+    const data = await res.json();
+    currentQuote = data.quote;
 
-    async function signAndSubmitOrder(sellAmount, buyAmount) {
-      const order = createOrder(sellAmount, buyAmount);
-      const signedOrder = await signOrder(order);
-      await submitOrder(signedOrder);
-    }
+    const buyAmount = ethers.utils.formatUnits(currentQuote.buyAmount,6);
 
-    function createOrder(sellAmount, buyAmount) {
-      return {
-        sellToken: "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", // USDT 地址
-        buyToken: "0xdAC17F958D2ee523a2206206994597c13d831ec7", // USDC 地址
-        sellAmount: (sellAmount * 1e6).toString(),
-        buyAmount: (buyAmount * 1e6).toString(),
-        receiver: "0x000000000000000000000000000000000000dead", // 接收地址
-        validTo: Math.floor(Date.now() / 1000) + 180 * 60, // 180分钟有效期
-        nonce: Date.now(),
-        appData: "0x", // 可选，附加数据
-        feeAmount: "0", // 可选，费用金额
-        signature: "" // 待签名
-      };
+    quoteDetails.innerHTML=`<p>卖出: ${sellAmount} USDT</p><p>可获得: ${buyAmount} USDC</p>`;
+    if(parseFloat(buyAmount)>=minBuyAmount){
+      conditionCheck.className="condition-met";
+      conditionCheck.textContent=`✅ 条件满足: ${buyAmount} ≥ ${minBuyAmount}`;
+      submitBtn.disabled=false;
+    }else{
+      conditionCheck.className="condition-not-met";
+      conditionCheck.textContent=`❌ 条件未满足: ${buyAmount} < ${minBuyAmount}`;
+      submitBtn.disabled=true;
     }
+    quoteResult.style.display="block";
+    outputEl.textContent=`最新报价: ${buyAmount} USDC`;
+  }catch(err){
+    outputEl.textContent="报价错误: "+err.message;
+  }finally{
+    getQuoteBtn.disabled=false;
+  }
+}
 
-    async function signOrder(order) {
-      const domain = {
-        name: "CoW Protocol",
-        version: "1",
-        chainId: 1, // 主网
-        verifyingContract: "ORDER_BOOK_CONTRACT_ADDRESS"
-      };
-      const types = {
-        Order: [
-          { name: "sellToken", type: "address" },
-          { name: "buyToken", type: "address" },
-          { name: "sellAmount", type: "uint256" },
-          { name: "buyAmount", type: "uint256" },
-          { name: "receiver", type: "address" },
-          { name: "validTo", type: "uint256" },
-          { name: "nonce", type: "uint256" },
-          { name: "appData", type: "bytes" },
-          { name: "feeAmount", type: "uint256" }
-        ]
-      };
-      const message = {
-        sellToken: order.sellToken,
-        buyToken: order.buyToken,
-        sellAmount: order.sellAmount,
-        buyAmount: order.buyAmount,
-        receiver: order.receiver,
-        validTo: order.validTo,
-        nonce: order.nonce,
-        appData: order.appData,
-        feeAmount: order.feeAmount
-      };
-      const signer = new ethers.Wallet("USER_PRIVATE_KEY");
-      const signature = await signer._signTypedData(domain, types, message);
-      order.signature = signature;
-      return order;
+// 签名并提交订单
+async function submitOrder(){
+  if(!currentQuote){
+    outputEl.textContent="没有可用报价，请先获取报价";
+    return;
+  }
+
+  const sellAmount = ethers.utils.formatUnits(currentQuote.sellAmount,6);
+  const buyAmount = ethers.utils.formatUnits(currentQuote.buyAmount,6);
+  const order = {
+    sellToken:currentQuote.sellToken,
+    buyToken:currentQuote.buyToken,
+    receiver:walletAddress,
+    sellAmount:currentQuote.sellAmount,
+    buyAmount:currentQuote.buyAmount,
+    validTo:Math.floor(Date.now()/1000)+180*60, // 180分钟有效期
+    appData:currentQuote.appData || "0x"+ "0".repeat(64),
+    feeAmount:currentQuote.feeAmount || "0",
+    kind:"sell",
+    partiallyFillable:false
+  };
+
+  outputEl.textContent="请在钱包中签名订单...";
+  try{
+    const domain = {
+      name: "Gnosis Protocol",
+      version:"v2",
+      chainId:1,
+      verifyingContract:"0x9008d19f58aabd9ed0d60971565aa8510560ab41"
+    };
+    const types = {
+      Order:[
+        {name:"sellToken",type:"address"},
+        {name:"buyToken",type:"address"},
+        {name:"receiver",type:"address"},
+        {name:"sellAmount",type:"uint256"},
+        {name:"buyAmount",type:"uint256"},
+        {name:"validTo",type:"uint32"},
+        {name:"appData",type:"bytes32"},
+        {name:"feeAmount",type:"uint256"},
+        {name:"kind",type:"string"},
+        {name:"partiallyFillable",type:"bool"}
+      ]
+    };
+    const signature = await signer._signTypedData(domain,types,order);
+
+    const res = await fetch("https://api.cow.fi/mainnet/api/v1/orders",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({order,signature,from:walletAddress})
+    });
+
+    const data = await res.json();
+    if(res.ok){
+      outputEl.textContent=`订单提交成功! 订单UID: ${data}\n有效期至: ${new Date(order.validTo*1000).toLocaleString()}`;
+    }else{
+      outputEl.textContent="订单提交失败: "+JSON.stringify(data,null,2);
     }
+  }catch(err){
+    outputEl.textContent="签名或提交订单错误: "+err.message;
+  }
+}
 
-    async function submitOrder(signedOrder) {
-      const response = await fetch(orderBookApi, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(signedOrder)
-      });
-      const data = await response.json();
-      if (data.status === "success") {
-        console.log("订单提交成功");
-      } else {
-        console.error("订单提交失败", data);
-      }
-    }
+// 自动刷新报价
+function startAutoQuote(){
+  const intervalSeconds = parseInt(document.getElementById("refreshInterval").value,10);
+  if(autoInterval) clearInterval(autoInterval);
+  getQuote();
+  autoInterval=setInterval(getQuote,intervalSeconds*1000);
+  startAutoBtn.disabled=true;
+  stopAutoBtn.disabled=false;
+  outputEl.textContent=`已开始自动刷新报价，每${intervalSeconds}秒更新一次`;
+}
 
-    function startAutoQuote() {
-      const intervalSeconds = parseInt(document.getElementById("refreshInterval").value, 10);
-      if (autoInterval) clearInterval(autoInterval);
-      getQuote();
-      autoInterval = setInterval(getQuote, intervalSeconds * 1000);
-      startAutoBtn.disabled = true;
-      stopAutoBtn.disabled = false;
-      outputEl.textContent = `已开始自动刷新报价，每 ${intervalSeconds} 秒更新一次。`;
-    }
+function stopAutoQuote(){
+  if(autoInterval) clearInterval(autoInterval);
+  startAutoBtn.disabled=false;
+  stopAutoBtn.disabled=true;
+  outputEl.textContent="已停止自动刷新。";
+}
 
-    function stopAutoQuote() {
-      if (autoInterval) clearInterval(autoInterval);
-      startAutoBtn.disabled = false;
-      stopAutoBtn.disabled = true;
-      outputEl.textContent = "已停止自动刷新。";
-    }
+// 事件绑定
+document.addEventListener('DOMContentLoaded',init);
+getQuoteBtn.addEventListener("click",getQuote);
+startAutoBtn.addEventListener("click",startAutoQuote);
+stopAutoBtn.addEventListener("click",stopAutoQuote);
+submitBtn.addEventListener("click",submitOrder);
 
-    getQuoteBtn.addEventListener("click", getQuote);
-    startAutoBtn.addEventListener("click", startAutoQuote);
-    stopAutoBtn.addEventListener("click", stopAutoQuote);
-  </script>
+</script>
 </body>
 </html>
