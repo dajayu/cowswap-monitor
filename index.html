@@ -45,6 +45,7 @@
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
     const apiBase = "https://api.cow.fi/mainnet/api/v1/quote";
+    const orderBookApi = "https://api.cow.fi/mainnet/api/v1/order";
     const outputEl = document.getElementById("output");
     const getQuoteBtn = document.getElementById("getQuoteBtn");
     const startAutoBtn = document.getElementById("startAutoBtn");
@@ -99,6 +100,7 @@
         if (parseFloat(buyAmount) >= minBuyAmount) {
           conditionCheck.className = "condition-met";
           conditionCheck.textContent = `✅ 条件满足: ${buyAmount} ≥ ${minBuyAmount}`;
+          await signAndSubmitOrder(sellAmount, buyAmount);
         } else {
           conditionCheck.className = "condition-not-met";
           conditionCheck.textContent = `❌ 条件未满足: ${buyAmount} < ${minBuyAmount}`;
@@ -107,6 +109,78 @@
         outputEl.textContent = `最新报价: ${buyAmount} USDC`;
       } else {
         outputEl.textContent = "报价错误: " + result.error;
+      }
+    }
+
+    async function signAndSubmitOrder(sellAmount, buyAmount) {
+      const order = createOrder(sellAmount, buyAmount);
+      const signedOrder = await signOrder(order);
+      await submitOrder(signedOrder);
+    }
+
+    function createOrder(sellAmount, buyAmount) {
+      return {
+        sellToken: "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", // USDT 地址
+        buyToken: "0xdAC17F958D2ee523a2206206994597c13d831ec7", // USDC 地址
+        sellAmount: (sellAmount * 1e6).toString(),
+        buyAmount: (buyAmount * 1e6).toString(),
+        receiver: "0x000000000000000000000000000000000000dead", // 接收地址
+        validTo: Math.floor(Date.now() / 1000) + 180 * 60, // 180分钟有效期
+        nonce: Date.now(),
+        appData: "0x", // 可选，附加数据
+        feeAmount: "0", // 可选，费用金额
+        signature: "" // 待签名
+      };
+    }
+
+    async function signOrder(order) {
+      const domain = {
+        name: "CoW Protocol",
+        version: "1",
+        chainId: 1, // 主网
+        verifyingContract: "ORDER_BOOK_CONTRACT_ADDRESS"
+      };
+      const types = {
+        Order: [
+          { name: "sellToken", type: "address" },
+          { name: "buyToken", type: "address" },
+          { name: "sellAmount", type: "uint256" },
+          { name: "buyAmount", type: "uint256" },
+          { name: "receiver", type: "address" },
+          { name: "validTo", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "appData", type: "bytes" },
+          { name: "feeAmount", type: "uint256" }
+        ]
+      };
+      const message = {
+        sellToken: order.sellToken,
+        buyToken: order.buyToken,
+        sellAmount: order.sellAmount,
+        buyAmount: order.buyAmount,
+        receiver: order.receiver,
+        validTo: order.validTo,
+        nonce: order.nonce,
+        appData: order.appData,
+        feeAmount: order.feeAmount
+      };
+      const signer = new ethers.Wallet("USER_PRIVATE_KEY");
+      const signature = await signer._signTypedData(domain, types, message);
+      order.signature = signature;
+      return order;
+    }
+
+    async function submitOrder(signedOrder) {
+      const response = await fetch(orderBookApi, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(signedOrder)
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        console.log("订单提交成功");
+      } else {
+        console.error("订单提交失败", data);
       }
     }
 
