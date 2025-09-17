@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CowSwap Order Submission (Fixed)</title>
+    <title>CowSwap 限价单提交</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -33,7 +33,7 @@
             margin-bottom: 8px;
             color: #e6e6e6;
         }
-        input {
+        input, select {
             width: 100%;
             padding: 12px;
             border: 1px solid #444;
@@ -120,66 +120,84 @@
             margin-top: 10px;
             font-size: 14px;
         }
-        .debug-info {
-            background-color: #3d5c4c;
-            padding: 10px;
-            border-radius: 6px;
-            margin-top: 10px;
-            font-size: 14px;
-            display: none;
-        }
         .section-title {
             border-bottom: 2px solid #4cc9f0;
             padding-bottom: 10px;
             margin-top: 30px;
             margin-bottom: 15px;
-            color: #4cc9f0;
+            color: #4cc9e0;
+        }
+        .slippage-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .slippage-control input {
+            width: 100px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>CowSwap Order Submission (Fixed)</h2>
+        <h2>CowSwap 限价单提交</h2>
         
         <div id="walletStatus" class="status info">
-            Checking for Web3 wallet...
+            正在检查Web3钱包...
         </div>
         
-        <div class="section-title">Order Details</div>
+        <div class="section-title">限价单详情</div>
         
         <div class="form-group">
-            <label for="sellToken">Sell Token (USDT address):</label>
-            <input id="sellToken" value="0xdac17f958d2ee523a2206206994597c13d831ec7">
-            <div class="token-info">Selling: 500 USDT (500000000 in wei)</div>
-        </div>
-        
-        <div class="form-group">
-            <label for="buyToken">Buy Token (USDC address):</label>
-            <input id="buyToken" value="0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48">
-            <div class="token-info">Buying: 500 USDC (500000000 in wei)</div>
+            <label for="sellToken">卖出代币 (代币地址):</label>
+            <input id="sellToken" value="0xdac17f958d2ee523a2206206994597c13d831ec7" placeholder="输入卖出代币合约地址">
+            <div class="token-info">卖出: USDT (6位小数)</div>
         </div>
         
         <div class="form-group">
-            <label for="sellAmount">Sell Amount (in wei):</label>
-            <input id="sellAmount" value="500000000">
+            <label for="buyToken">买入代币 (代币地址):</label>
+            <input id="buyToken" value="0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" placeholder="输入买入代币合约地址">
+            <div class="token-info">买入: USDC (6位小数)</div>
         </div>
         
         <div class="form-group">
-            <label for="buyAmount">Buy Amount (in wei):</label>
-            <input id="buyAmount" value="500000000">
+            <label for="sellAmount">卖出数量 (单位: 代币最小单位):</label>
+            <input id="sellAmount" value="500000000" placeholder="例如: 500000000 表示 500 USDT">
+        </div>
+        
+        <div class="form-group">
+            <label for="limitPrice">限价 (1个卖出代币可兑换的买入代币数量):</label>
+            <input id="limitPrice" value="1.0" placeholder="例如: 1.0 表示 1 USDT = 1 USDC">
+            <div class="token-info">当市场价格达到或优于此价格时，订单才会执行</div>
         </div>
 
-        <div class="order-info">
-            <strong>Order Validity:</strong><br>
-            This order will expire <strong>10 minutes</strong> after submission.
-            (<code>validTo</code> is calculated dynamically from current time)
+        <div class="form-group">
+            <label for="orderExpiry">订单有效期 (分钟):</label>
+            <select id="orderExpiry">
+                <option value="30">30分钟</option>
+                <option value="60" selected>60分钟</option>
+                <option value="1440">24小时</option>
+                <option value="10080">7天</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="partiallyFillable">允许部分成交:</label>
+            <select id="partiallyFillable">
+                <option value="true">是</option>
+                <option value="false" selected>否</option>
+            </select>
+            <div class="token-info">如果选择"是"，订单可能会部分成交</div>
         </div>
         
-        <button id="submitBtn" disabled>Sign & Submit Order</button>
+        <div class="order-info">
+            <strong>限价单说明：</strong><br>
+            此订单将在市场价格达到您设定的限价时自动执行。如果市场价格未达到限价，订单将在有效期后自动失效。CowSwap通过批量拍卖和需求匹配机制，为您提供MEV保护和可能的价格优化:cite[2]:cite[10]。
+        </div>
         
-        <div class="section-title">Output</div>
-        <div id="debugInfo" class="debug-info"></div>
-        <div id="output">Waiting for wallet connection...</div>
+        <button id="submitBtn" disabled>签名并提交限价单</button>
+        
+        <div class="section-title">输出信息</div>
+        <div id="output">等待钱包连接...</div>
     </div>
 
     <!-- 使用正确的 ethers.js UMD 版本 -->
@@ -188,15 +206,8 @@
     <script>
         const apiBase = "https://api.cow.fi/mainnet/api/v1";
         const outputEl = document.getElementById("output");
-        const debugInfoEl = document.getElementById("debugInfo");
         const submitBtn = document.getElementById("submitBtn");
         const walletStatus = document.getElementById("walletStatus");
-        
-        // 显示调试信息
-        function showDebugInfo(message) {
-            debugInfoEl.style.display = 'block';
-            debugInfoEl.textContent = message;
-        }
         
         // 初始化函数
         async function init() {
@@ -204,11 +215,11 @@
             
             // 检查是否安装了以太坊钱包
             if (typeof window.ethereum === 'undefined') {
-                showError("Web3 wallet not found. Please install MetaMask or another Web3 wallet!");
+                showError("未找到Web3钱包。请安装MetaMask或其他Web3钱包!");
                 return;
             }
             
-            walletStatus.textContent = "Web3 wallet detected. Connecting...";
+            walletStatus.textContent = "检测到Web3钱包。连接中...";
             walletStatus.className = "status info";
             
             try {
@@ -220,13 +231,13 @@
                 const signer = provider.getSigner();
                 const walletAddress = await signer.getAddress();
                 
-                walletStatus.textContent = "Connected: " + walletAddress.substring(0, 8) + "...";
+                walletStatus.textContent = "已连接: " + walletAddress.substring(0, 8) + "...";
                 walletStatus.className = "status success";
-                outputEl.textContent = "Wallet connected successfully. Ready to submit orders.";
+                outputEl.textContent = "钱包连接成功。准备提交限价单。";
                 submitBtn.disabled = false;
                 
             } catch (err) {
-                showError("Wallet connection failed: " + err.message);
+                showError("钱包连接失败: " + err.message);
             }
         }
         
@@ -250,8 +261,7 @@
                 address = '0x' + address;
             }
             
-            // 转换为小写（以太坊地址不区分大小写，但校验和地址需要特定格式）
-            // 这里我们使用小写格式以避免问题
+            // 转换为小写
             address = address.toLowerCase();
             
             return address;
@@ -259,72 +269,70 @@
         
         // 验证数字格式
         function validateNumber(value, fieldName) {
-            if (!value) throw new Error(`${fieldName} is required`);
+            if (!value) throw new Error(`${fieldName} 是必填项`);
             
             // 移除任何逗号或空格
             value = value.replace(/,/g, '').trim();
             
-            // 检查是否为有效数字
-            if (!/^\d+$/.test(value)) {
-                throw new Error(`${fieldName} must be a valid number`);
-            }
-            
             return value;
         }
         
-        // 提交订单函数
-        async function submitOrder() {
-            outputEl.textContent = "Preparing order...";
+        // 提交限价单函数
+        async function submitLimitOrder() {
+            outputEl.textContent = "准备限价单...";
             submitBtn.disabled = true;
-            debugInfoEl.style.display = 'none';
             
             try {
                 const provider = new ethers.providers.Web3Provider(window.ethereum);
                 const signer = provider.getSigner();
                 const walletAddress = await signer.getAddress();
                 
-                // 获取输入值并修复地址格式
+                // 获取输入值
                 const sellToken = fixAddressFormat(document.getElementById("sellToken").value);
                 const buyToken = fixAddressFormat(document.getElementById("buyToken").value);
-                const sellAmount = validateNumber(document.getElementById("sellAmount").value, "Sell amount");
-                const buyAmount = validateNumber(document.getElementById("buyAmount").value, "Buy amount");
+                const sellAmount = validateNumber(document.getElementById("sellAmount").value, "卖出数量");
+                const limitPrice = validateNumber(document.getElementById("limitPrice").value, "限价");
+                const orderExpiry = document.getElementById("orderExpiry").value;
+                const partiallyFillable = document.getElementById("partiallyFillable").value === "true";
+                
+                // 计算买入数量（基于限价）
+                const buyAmount = Math.floor(sellAmount * limitPrice).toString();
                 
                 // 验证地址格式
                 if (!ethers.utils.isAddress(sellToken)) {
-                    throw new Error("Invalid sell token address: " + sellToken);
+                    throw new Error("无效的卖出代币地址: " + sellToken);
                 }
                 
                 if (!ethers.utils.isAddress(buyToken)) {
-                    throw new Error("Invalid buy token address: " + buyToken);
+                    throw new Error("无效的买入代币地址: " + buyToken);
                 }
                 
-                // 动态计算 validTo：当前时间 + 10分钟（600秒）
-                const validTo = Math.floor(Date.now() / 1000) + 600;
+                // 动态计算 validTo：当前时间 + 订单有效期
+                const validTo = Math.floor(Date.now() / 1000) + (parseInt(orderExpiry) * 60);
                 
-                // 构造完整的订单对象 - 特别注意数据类型
+                // 构造完整的限价单对象
                 const unsignedOrder = {
-                    sellToken: sellToken,
-                    buyToken: buyToken,
-                    sellAmount: sellAmount.toString(), // 确保是字符串
-                    buyAmount: buyAmount.toString(),   // 确保是字符串
-                    validTo: validTo,                  // 数字类型
-                    appData: "0x40fc3752068beb68cbd94040fa900592994011f3c54211773c50fc6e96fe5696",
-                    feeAmount: "0",                    // 字符串
-                    kind: "sell",                      // 字符串
-                    partiallyFillable: false,          // 布尔类型
-                    sellTokenBalance: "erc20",         // 字符串
-                    buyTokenBalance: "erc20",          // 字符串
-                    receiver: walletAddress            // 地址字符串
+                    sellToken,
+                    buyToken,
+                    sellAmount,
+                    buyAmount,
+                    validTo,
+                    appData: "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    feeAmount: "0",
+                    kind: "sell",
+                    partiallyFillable,
+                    sellTokenBalance: "erc20",
+                    buyTokenBalance: "erc20",
+                    receiver: walletAddress
                 };
                 
-                // 显示调试信息
-                showDebugInfo("Order data to sign:\n" + JSON.stringify(unsignedOrder, null, 2));
-                
-                outputEl.textContent = `Order details:
-- Sell: ${sellAmount} wei of ${sellToken}
-- Buy: ${buyAmount} wei of ${buyToken}
-- Expires at: ${new Date(validTo * 1000).toLocaleTimeString()}
-Signing order...`;
+                outputEl.textContent = `限价单详情:
+- 卖出: ${sellAmount} 最小单位的 ${sellToken}
+- 买入: ${buyAmount} 最小单位的 ${buyToken}
+- 限价: 1 ${sellToken} = ${limitPrice} ${buyToken}
+- 有效期至: ${new Date(validTo * 1000).toLocaleString()}
+- 部分成交: ${partiallyFillable ? "是" : "否"}
+签名中...`;
                 
                 const domain = {
                     name: "Gnosis Protocol",
@@ -350,50 +358,42 @@ Signing order...`;
                     ]
                 };
                 
-                outputEl.textContent += "\nPlease confirm the signature in your wallet...";
+                outputEl.textContent += "\n请在钱包中确认签名...";
                 
-                try {
-                    // 使用 ethers 进行签名
-                    const signature = await signer._signTypedData(domain, types, unsignedOrder);
-                    
-                    outputEl.textContent += "\nSubmitting order to CowSwap...";
-                    
-                    // 提交订单到 CowSwap API
-                    const res = await fetch(`${apiBase}/orders`, {
-                        method: "POST",
-                        headers: {"Content-Type": "application/json"},
-                        body: JSON.stringify({order: unsignedOrder, signature})
-                    });
-                    
-                    const data = await res.json();
-                    
-                    if (res.ok) {
-                        outputEl.textContent = "Order submitted successfully!\nOrder UID: " + data + 
-                                              "\nExpires at: " + new Date(validTo * 1000).toLocaleString() +
-                                              "\nCheck status: https://explorer.cow.fi/mainnet/orders/" + data;
-                    } else {
-                        outputEl.textContent = "Order submission failed: " + JSON.stringify(data, null, 2);
-                    }
-                } catch(signError) {
-                    // 处理签名错误
-                    if (signError.message.includes("THE STRING DID NOT MATCH THE EXPECTED PATTERN")) {
-                        showError("Signature error: Data format mismatch. Please check that all values are correctly formatted.");
-                    } else {
-                        showError("Signing error: " + signError.message);
-                    }
+                // 使用 ethers 进行签名
+                const signature = await signer._signTypedData(domain, types, unsignedOrder);
+                
+                outputEl.textContent += "\n向CowSwap提交限价单...";
+                
+                // 提交限价单到 CowSwap API
+                const res = await fetch(`${apiBase}/orders`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({order: unsignedOrder, signature})
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok) {
+                    outputEl.textContent = "限价单提交成功!\n订单UID: " + data + 
+                                          "\n有效期至: " + new Date(validTo * 1000).toLocaleString() +
+                                          "\n查看状态: https://explorer.cow.fi/mainnet/orders/" + data +
+                                          "\n\n请注意: 这是一个限价单，只有在市场价格达到或优于您的限价时才会执行。";
+                } else {
+                    outputEl.textContent = "订单提交失败: " + JSON.stringify(data, null, 2);
                 }
                 
                 submitBtn.disabled = false;
                 
             } catch(err) {
-                showError("Error: " + err.message);
+                showError("错误: " + err.message);
                 submitBtn.disabled = false;
             }
         }
         
         // 初始化应用
         document.addEventListener('DOMContentLoaded', init);
-        document.getElementById("submitBtn").addEventListener("click", submitOrder);
+        document.getElementById("submitBtn").addEventListener("click", submitLimitOrder);
     </script>
 </body>
 </html>
