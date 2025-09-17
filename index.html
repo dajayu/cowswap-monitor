@@ -1,146 +1,151 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CoW Swap 报价工具</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
-    h1 { color: #333; }
-    label { display: block; margin: 10px 0 5px; }
-    input, button { width: 100%; padding: 10px; margin: 5px 0 20px; border: 1px solid #ccc; border-radius: 4px; }
-    button { background-color: #4CAF50; color: white; cursor: pointer; }
-    button:disabled { background-color: #ccc; }
-    #quoteResult { background-color: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 4px; }
-    .error { color: red; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CowSwap 条件交易工具</title>
+<style>
+body {font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif; max-width:800px; margin:0 auto; padding:20px; background:#1a1a1a; color:#e6e6e6;}
+.container {background:#2d2d2d; border-radius:12px; padding:25px; box-shadow:0 4px 12px rgba(0,0,0,0.3);}
+h2 {color:#4cc9f0; text-align:center; margin-bottom:25px;}
+.form-group {margin-bottom:20px;}
+label {display:block; font-weight:500; margin-bottom:8px; color:#e6e6e6;}
+input, select {width:100%; padding:12px; border:1px solid #444; border-radius:6px; font-size:16px; box-sizing:border-box; background:#3d3d3d; color:#e6e6e6;}
+button {background:linear-gradient(135deg,#4cc9f0,#4361ee); color:white; padding:14px 20px; border:none; border-radius:6px; font-size:16px; font-weight:600; width:100%; cursor:pointer; transition:all 0.3s; margin-top:10px;}
+button:hover:not(:disabled) {transform:translateY(-2px); box-shadow:0 4px 12px rgba(76,201,240,0.3);}
+button:disabled {background:#555; cursor:not-allowed; transform:none; box-shadow:none;}
+#output {background:#3d3d3d; border-radius:6px; padding:15px; margin-top:20px; white-space:pre-wrap; word-break:break-all; font-family:monospace; font-size:14px; max-height:300px; overflow-y:auto; color:#e6e6e6;}
+.status {padding:10px; border-radius:6px; margin-bottom:15px; text-align:center;}
+.error {background:#5e2a2a; color:#ff7b7b; border:1px solid #ff5252;}
+.success {background:#2a5e3d; color:#7bffb3; border:1px solid #52ff95;}
+.info {background:#2a3d5e; color:#7bacff; border:1px solid #5294ff;}
+.quote-result {background:#3d5c4c; padding:15px; border-radius:6px; margin-top:15px;}
+.condition-met {background:#2a5e3d;color:#7bffb3;padding:10px;border-radius:6px;margin-top:10px;}
+.condition-not-met {background:#5e2a2a;color:#ff7b7b;padding:10px;border-radius:6px;margin-top:10px;}
+</style>
 </head>
 <body>
-  <h1>CoW Swap 报价工具</h1>
-  <label for="sellAmount">卖出数量 (USDT):</label>
-  <input id="sellAmount" type="number" value="100" step="0.01">
+<div class="container">
+<h2>CowSwap 条件交易工具</h2>
 
-  <label for="minBuyAmount">最低期望获得 (USDT):</label>
-  <input id="minBuyAmount" type="number" value="100" step="0.01">
+<div id="walletStatus" class="status info">正在检查Web3钱包...</div>
 
-  <label for="refreshInterval">自动刷新间隔 (秒):</label>
-  <input id="refreshInterval" type="number" value="30" step="5">
+<div class="form-group">
+<label for="sellAmount">卖出数量 (USDT):</label>
+<input id="sellAmount" type="number" value="6000" step="0.01">
+</div>
 
-  <button id="getQuoteBtn">获取报价</button>
-  <button id="startAutoBtn">开始自动刷新</button>
-  <button id="stopAutoBtn" disabled>停止自动刷新</button>
+<div class="form-group">
+<label for="minBuyAmount">最低期望获得 (USDC):</label>
+<input id="minBuyAmount" type="number" value="6004" step="0.01">
+</div>
 
-  <div id="quoteResult" style="display: none;">
-    <h2>报价结果</h2>
-    <p id="quoteDetails"></p>
-    <p id="conditionCheck"></p>
-  </div>
+<div class="form-group">
+<label for="refreshInterval">自动刷新间隔 (秒):</label>
+<input id="refreshInterval" type="number" value="30" step="5">
+</div>
 
-  <div id="output">等待获取报价...</div>
+<button id="getQuoteBtn">获取CowSwap报价</button>
+<button id="startAutoBtn">开始自动刷新</button>
+<button id="stopAutoBtn" disabled>停止自动刷新</button>
 
-  <script>
-    const apiBase = "https://api.cow.fi/mainnet/api/v1/quote";
-    const outputEl = document.getElementById("output");
-    const getQuoteBtn = document.getElementById("getQuoteBtn");
-    const startAutoBtn = document.getElementById("startAutoBtn");
-    const stopAutoBtn = document.getElementById("stopAutoBtn");
-    const quoteResult = document.getElementById("quoteResult");
-    const quoteDetails = document.getElementById("quoteDetails");
-    const conditionCheck = document.getElementById("conditionCheck");
+<div id="quoteResult" class="quote-result" style="display:none;">
+<h3>报价结果</h3>
+<div id="quoteDetails"></div>
+<div id="conditionCheck"></div>
+</div>
 
-    let autoInterval = null;
+<div id="output">等待获取报价...</div>
+</div>
 
-    async function getCowQuote(token, amount) {
-      const sellAmountWei = BigInt(Math.floor(amount * 1e18)).toString();
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script>
+const apiBase = "https://api.cow.fi/mainnet/api/v1/quote";
+const outputEl = document.getElementById("output");
+const getQuoteBtn = document.getElementById("getQuoteBtn");
+const startAutoBtn = document.getElementById("startAutoBtn");
+const stopAutoBtn = document.getElementById("stopAutoBtn");
+const quoteResult = document.getElementById("quoteResult");
+const quoteDetails = document.getElementById("quoteDetails");
+const conditionCheck = document.getElementById("conditionCheck");
 
-      const body = {
-        sellToken: token.address,
-        buyToken: "0xdAC17F958D2ee523a2206206994597C13D831ec7", // USDT
-        sellAmount: sellAmountWei,
-        kind: "sell",
-        from: "0x0000000000000000000000000000000000000000",
-        receiver: "0x0000000000000000000000000000000000000000",
-        validTo: Math.floor(Date.now() / 1000) + 300,
-        appData: "0x0000000000000000000000000000000000000000000000000000000000000000",
-        feeAmount: "0"
-      };
+let autoInterval = null;
+let currentQuote = null;
 
-      try {
-        const res = await fetch(apiBase, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(body)
-        });
-
-        if (!res.ok) {
-          const text = await res.text();
-          return {error: `CoW API 错误: ${res.status} - ${text}`};
-        }
-
-        const data = await res.json();
-
-        if (data.quote && data.quote.buyAmount) {
-          return {price: Number(data.quote.buyAmount) / 1e6}; // USDT 有 6 位小数
-        }
-
-        return {error: data.description || "CoW Swap 报价失败"};
-      } catch (e) {
-        return {error: e.message || "网络请求失败"};
-      }
+// 保留你原来的可用报价方法
+async function getCowQuote(token, amount) {
+  const sellAmountWei = BigInt(Math.floor(amount * 1e18)).toString();
+  const body = {
+    sellToken: token.address,
+    buyToken: "0xdAC17F958D2ee523a2206206994597c13d831ec7", // USDT
+    sellAmountBeforeFee: sellAmountWei,
+    kind: "sell",
+    from: "0x000000000000000000000000000000000000dead"
+  };
+  try {
+    const res = await fetch(apiBase, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return {error: `CoW API错误: ${res.status} - ${text}`};
     }
-
-    async function getQuote() {
-      const sellAmount = parseFloat(document.getElementById("sellAmount").value);
-      const minBuyAmount = parseFloat(document.getElementById("minBuyAmount").value);
-      outputEl.textContent = "正在获取报价...";
-
-      const token = { address: "0xdAC17F958D2ee523a2206206994597C13D831ec7" };
-
-      const result = await getCowQuote(token, sellAmount);
-
-      if (result.price) {
-        quoteDetails.innerHTML = `
-          <p>卖出: ${sellAmount} USDT</p>
-          <p>可获得: ${result.price.toFixed(6)} USDT</p>
-          <p>报价有效期: ${new Date(Date.now() + 300000).toLocaleTimeString()}</p>
-        `;
-
-        if (result.price >= minBuyAmount) {
-          conditionCheck.className = "condition-met";
-          conditionCheck.textContent = `✅ 条件满足: ${result.price.toFixed(6)} ≥ ${minBuyAmount}`;
-        } else {
-          conditionCheck.className = "condition-not-met";
-          conditionCheck.textContent = `❌ 条件未满足: ${result.price.toFixed(6)} < ${minBuyAmount}`;
-        }
-
-        quoteResult.style.display = "block";
-        outputEl.textContent = `最新报价: ${result.price.toFixed(6)} USDT`;
-      } else {
-        outputEl.textContent = "报价错误: " + result.error;
-      }
+    const data = await res.json();
+    if (data.quote && data.quote.buyAmount) {
+      return {price: Number(data.quote.buyAmount) / 1e6, raw: data.quote};
     }
+    return {error: data.description || "CoW Swap报价失败"};
+  } catch(e) {
+    return {error: e.message || "网络请求失败"};
+  }
+}
 
-    function startAutoQuote() {
-      const intervalSeconds = parseInt(document.getElementById("refreshInterval").value, 10);
-      if (autoInterval) clearInterval(autoInterval);
-      getQuote();
-      autoInterval = setInterval(getQuote, intervalSeconds * 1000);
-      startAutoBtn.disabled = true;
-      stopAutoBtn.disabled = false;
-      outputEl.textContent = `已开始自动刷新报价，每 ${intervalSeconds} 秒更新一次。`;
+async function getQuote() {
+  const sellAmount = parseFloat(document.getElementById("sellAmount").value);
+  const minBuyAmount = parseFloat(document.getElementById("minBuyAmount").value);
+  outputEl.textContent = "正在获取CowSwap报价...";
+  const token = { address: "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" };
+  const result = await getCowQuote(token, sellAmount);
+  if (result.price) {
+    currentQuote = result.raw;
+    quoteDetails.innerHTML = `<p>卖出: ${sellAmount} USDT</p>
+                              <p>可获得: ${result.price.toFixed(6)} USDC</p>`;
+    if (result.price >= minBuyAmount) {
+      conditionCheck.className = "condition-met";
+      conditionCheck.textContent = `✅ 条件满足: ${result.price.toFixed(6)} ≥ ${minBuyAmount}`;
+    } else {
+      conditionCheck.className = "condition-not-met";
+      conditionCheck.textContent = `❌ 条件未满足: ${result.price.toFixed(6)} < ${minBuyAmount}`;
     }
+    quoteResult.style.display = "block";
+    outputEl.textContent = `最新报价: ${result.price.toFixed(6)} USDC`;
+  } else {
+    outputEl.textContent = "报价错误: " + result.error;
+  }
+}
 
-    function stopAutoQuote() {
-      if (autoInterval) clearInterval(autoInterval);
-      startAutoBtn.disabled = false;
-      stopAutoBtn.disabled = true;
-      outputEl.textContent = "已停止自动刷新。";
-    }
+function startAutoQuote() {
+  const intervalSeconds = parseInt(document.getElementById("refreshInterval").value, 10);
+  if (autoInterval) clearInterval(autoInterval);
+  getQuote();
+  autoInterval = setInterval(getQuote, intervalSeconds * 1000);
+  startAutoBtn.disabled = true;
+  stopAutoBtn.disabled = false;
+  outputEl.textContent = `已开始自动刷新报价，每 ${intervalSeconds} 秒更新一次。`;
+}
 
-    getQuoteBtn.addEventListener("click", getQuote);
-    startAutoBtn.addEventListener("click", startAutoQuote);
-    stopAutoBtn.addEventListener("click", stopAutoQuote);
-  </script>
+function stopAutoQuote() {
+  if (autoInterval) clearInterval(autoInterval);
+  startAutoBtn.disabled = false;
+  stopAutoBtn.disabled = true;
+  outputEl.textContent = "已停止自动刷新。";
+}
+
+getQuoteBtn.addEventListener("click", getQuote);
+startAutoBtn.addEventListener("click", startAutoQuote);
+stopAutoBtn.addEventListener("click", stopAutoQuote);
+</script>
 </body>
 </html>
-
