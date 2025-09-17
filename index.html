@@ -61,6 +61,7 @@
     font-family:monospace;
     max-height:300px;
     overflow-y:auto;
+    white-space: pre-wrap;
   }
   .status {
     padding:10px;
@@ -117,7 +118,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@cowprotocol/cow-sdk@0.1.0-monorepo.0/dist/cow-sdk.min.js"></script>
 <script>
 const walletStatus = document.getElementById("walletStatus");
 const outputEl = document.getElementById("output");
@@ -162,10 +162,9 @@ async function getQuote() {
   getQuoteBtn.disabled = true;
 
   try {
-    const sellToken = { address: "0xdAC17F958D2ee523a2206206994597c13d831ec7" }; // USDT
     const sellAmountWei = ethers.utils.parseUnits(sellAmount.toString(), 6).toString();
     const body = {
-      sellToken: sellToken.address,
+      sellToken: "0xdAC17F958D2ee523a2206206994597c13d831ec7", // USDT
       buyToken: "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", // USDC
       sellAmountBeforeFee: sellAmountWei,
       kind: "sell",
@@ -207,7 +206,7 @@ async function getQuote() {
   }
 }
 
-// 使用官方 SDK 签名并提交订单
+// 签名并提交订单
 async function submitOrder() {
   if (!currentQuote) {
     outputEl.textContent = "没有可用报价，请先获取报价";
@@ -215,37 +214,79 @@ async function submitOrder() {
   }
 
   outputEl.textContent = "正在准备签名订单...";
+  submitBtn.disabled = true;
+  
   try {
-    const sdk = new CowSDK.CowSdk({ provider });
+    // 构建订单数据
     const order = {
       sellToken: currentQuote.sellToken,
       buyToken: currentQuote.buyToken,
-      receiver: walletAddress,
       sellAmount: currentQuote.sellAmount,
       buyAmount: currentQuote.buyAmount,
-      validTo: Math.floor(Date.now()/1000)+180*60, // 180分钟有效期
-      appData: currentQuote.appData || "0x" + "0".repeat(64),
+      validTo: Math.floor(Date.now()/1000) + 180*60, // 180分钟有效期
+      appData: "0x0000000000000000000000000000000000000000000000000000000000000000",
       feeAmount: currentQuote.feeAmount || "0",
       kind: "sell",
-      partiallyFillable: false
+      partiallyFillable: false,
+      receiver: walletAddress
     };
 
-    const signedOrder = await CowSDK.OrderSigningUtils.signOrder(order, signer);
+    outputEl.textContent += "\n正在请求用户签名...";
+    
+    // 请求用户签名
+    const signature = await signer.signMessage(
+      ethers.utils.arrayify(
+        ethers.utils.keccak256(
+          ethers.utils.defaultAbiCoder.encode(
+            [
+              "address", "address", "uint256", "uint256", "uint32", 
+              "bytes32", "uint256", "string", "bool", "address"
+            ],
+            [
+              order.sellToken,
+              order.buyToken,
+              order.sellAmount,
+              order.buyAmount,
+              order.validTo,
+              order.appData,
+              order.feeAmount,
+              order.kind,
+              order.partiallyFillable,
+              order.receiver
+            ]
+          )
+        )
+      )
+    );
 
+    outputEl.textContent += "\n签名成功，正在提交订单...";
+    
+    // 提交订单到CowSwap API
     const res = await fetch("https://api.cow.fi/mainnet/api/v1/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order: signedOrder.order, signature: signedOrder.signature, from: walletAddress })
+      body: JSON.stringify({
+        ...order,
+        signature,
+        from: walletAddress,
+        signingScheme: "ethsign"
+      })
     });
 
     const data = await res.json();
     if (res.ok) {
       outputEl.textContent = `订单提交成功! 订单UID: ${data}\n有效期至: ${new Date(order.validTo*1000).toLocaleString()}`;
     } else {
-      outputEl.textContent = "订单提交失败: " + JSON.stringify(data,null,2);
+      outputEl.textContent = "订单提交失败: " + JSON.stringify(data, null, 2);
     }
   } catch (err) {
-    outputEl.textContent = "签名或提交订单错误: " + err.message;
+    if (err.code === 4001) {
+      outputEl.textContent = "用户拒绝了交易签名请求";
+    } else {
+      outputEl.textContent = "签名或提交订单错误: " + err.message;
+    }
+  } finally {
+    submitBtn.disabled = false;
   }
 }
 
