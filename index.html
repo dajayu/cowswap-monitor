@@ -1,1 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CowSwap 条件交易工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #e6e6e6;
+        }
+        .container {
+            background-color: #2d2d2d;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        h2 {
+            color: #4cc9f0;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #e6e6e6;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+            background-color: #3d3d3d;
+            color: #e6e6e6;
+        }
+        button {
+            background: linear-gradient(135deg, #4cc9f0, #4361ee);
+            color: white;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 201, 240, 0.3);
+        }
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        #output {
+            background-color: #3d3d3d;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+            color: #e6e6e6;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .error {
+            background-color: #5e2a2a;
+            color: #ff7b7b;
+            border: 1px solid #ff5252;
+        }
+        .success {
+            background-color: #2a5e3d;
+            color: #7bffb3;
+            border: 1px solid #52ff95;
+        }
+        .warning {
+            background-color: #5e552a;
+            color: #ffef7b;
+            border: 1px solid #ffe652;
+        }
+        .info {
+            background-color: #2a3d5e;
+            color: #7bacff;
+            border: 1px solid #5294ff;
+        }
+        .token-info {
+            background-color: #3d3d5c;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        .order-info {
+            background-color: #5c4c3d;
+            color: #ffd37b;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .section-title {
+            border-bottom: 2px solid #4cc9f0;
+            padding-bottom: 10px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: #4cc9e0;
+        }
+        .quote-result {
+            background-color: #3d5c4c;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+        .condition-check {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .condition-met {
+            background-color: #2a5e3d;
+            color: #7bffb3;
+        }
+        .condition-not-met {
+            background-color: #5e2a2a;
+            color: #ff7b7b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>CowSwap 条件交易工具</h2>
+        
+        <div id="walletStatus" class="status info">
+            正在检查Web3钱包...
+        </div>
+        
+        <div class="section-title">交易参数</div>
+        
+        <div class="form-group">
+            <label for="sellToken">卖出代币 (USDT地址):</label>
+            <input id="sellToken" value="0xdac17f958d2ee523a2206206994597c13d831ec7" readonly>
+            <div class="token-info">卖出: USDT (6位小数)</div>
+        </div>
+        
+        <div class="form-group">
+            <label for="buyToken">买入代币 (USDC地址):</label>
+            <input id="buyToken" value="0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" readonly>
+            <div class="token-info">买入: USDC (6位小数)</div>
+        </div>
+        
+        <div class="form-group">
+            <label for="sellAmount">卖出数量 (USDT):</label>
+            <input id="sellAmount" type="number" value="6000" step="0.01">
+            <div class="token-info">想要卖出的USDT数量</div>
+        </div>
+        
+        <div class="form-group">
+            <label for="minBuyAmount">最低期望获得 (USDC):</label>
+            <input id="minBuyAmount" type="number" value="6004" step="0.01">
+            <div class="token-info">希望至少获得的USDC数量（如果报价低于此值，不应交易）</div>
+        </div>
 
+        <div class="order-info">
+            <strong>说明：</strong><br>
+            此工具会通过CowSwap API获取实时报价，只有当报价满足您设置的最低期望条件时，才建议提交订单。
+            CowSwap通过批量拍卖和需求匹配机制，为您提供MEV保护和可能的价格优化:cite[4]:cite[6]。
+        </div>
+        
+        <button id="getQuoteBtn">获取CowSwap报价</button>
+        
+        <div id="quoteResult" class="quote-result" style="display: none;">
+            <h3>报价结果</h3>
+            <div id="quoteDetails"></div>
+            <div id="conditionCheck" class="condition-check"></div>
+        </div>
+        
+        <button id="submitBtn" disabled>签名并提交订单</button>
+        
+        <div class="section-title">输出信息</div>
+        <div id="output">等待获取报价...</div>
+    </div>
+
+    <!-- 使用正确的 ethers.js UMD 版本 -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    
+    <script>
+        const apiBase = "https://api.cow.fi/mainnet/api";
+        const outputEl = document.getElementById("output");
+        const submitBtn = document.getElementById("submitBtn");
+        const walletStatus = document.getElementById("walletStatus");
+        const getQuoteBtn = document.getElementById("getQuoteBtn");
+        const quoteResult = document.getElementById("quoteResult");
+        const quoteDetails = document.getElementById("quoteDetails");
+        const conditionCheck = document.getElementById("conditionCheck");
+        
+        let currentQuote = null;
+        
+        // 初始化函数
+        async function init() {
+            walletStatus.style.display = 'block';
+            
+            // 检查是否安装了以太坊钱包
+            if (typeof window.ethereum === 'undefined') {
+                showError("未找到Web3钱包。请安装MetaMask或其他Web3钱包!");
+                return;
+            }
+            
+            walletStatus.textContent = "检测到Web3钱包。连接中...";
+            walletStatus.className = "status info";
+            
+            try {
+                // 请求账户访问
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
+                // 创建 ethers 提供者
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                const walletAddress = await signer.getAddress();
+                
+                walletStatus.textContent = "已连接: " + walletAddress.substring(0, 8) + "...";
+                walletStatus.className = "status success";
+                outputEl.textContent = "钱包连接成功。可以获取报价了。";
+                getQuoteBtn.disabled = false;
+                
+            } catch (err) {
+                showError("钱包连接失败: " + err.message);
+            }
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            walletStatus.textContent = message;
+            walletStatus.className = "status error";
+            outputEl.textContent = message;
+            submitBtn.disabled = true;
+            getQuoteBtn.disabled = true;
+        }
+        
+        // 获取CowSwap报价
+        async function getQuote() {
+            outputEl.textContent = "正在获取CowSwap报价...";
+            getQuoteBtn.disabled = true;
+            quoteResult.style.display = 'none';
+            
+            try {
+                const sellToken = document.getElementById("sellToken").value;
+                const buyToken = document.getElementById("buyToken").value;
+                const sellAmount = document.getElementById("sellAmount").value;
+                
+                // 将卖出数量转换为最小单位（USDT有6位小数）
+                const sellAmountInWei = ethers.utils.parseUnits(sellAmount, 6).toString();
+                
+                // 调用CowSwap报价API
+                const quoteResponse = await fetch(`${apiBase}/v1/quote`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        sellToken: sellToken,
+                        buyToken: buyToken,
+                        receiver: "0x0000000000000000000000000000000000000000", // 先使用零地址，后续会替换
+                        from: "0x0000000000000000000000000000000000000000", // 先使用零地址
+                        sellAmount: sellAmountInWei,
+                        kind: "sell",
+                        validTo: Math.floor(Date.now() / 1000) + 600, // 10分钟有效期
+                    })
+                });
+                
+                if (!quoteResponse.ok) {
+                    throw new Error(`获取报价失败: ${quoteResponse.status} ${quoteResponse.statusText}`);
+                }
+                
+                const quoteData = await quoteResponse.json();
+                currentQuote = quoteData;
+                
+                // 将返回的买入数量从最小单位转换为标准单位
+                const buyAmountInWei = quoteData.buyAmount;
+                const buyAmount = ethers.utils.formatUnits(buyAmountInWei, 6);
+                
+                // 显示报价详情
+                quoteDetails.innerHTML = `
+                    <p>卖出: ${sellAmount} USDT</p>
+                    <p>可获得: ${buyAmount} USDC</p>
+                    <p>报价有效期: ${new Date(Date.now() + 60000).toLocaleTimeString()}</p>
+                `;
+                
+                // 检查条件是否满足
+                const minBuyAmount = parseFloat(document.getElementById("minBuyAmount").value);
+                const isConditionMet = parseFloat(buyAmount) >= minBuyAmount;
+                
+                if (isConditionMet) {
+                    conditionCheck.className = "condition-check condition-met";
+                    conditionCheck.innerHTML = `<p>✅ 条件满足! 可获得 ${buyAmount} USDC >= 最低要求 ${minBuyAmount} USDC</p>`;
+                    submitBtn.disabled = false;
+                } else {
+                    conditionCheck.className = "condition-check condition-not-met";
+                    conditionCheck.innerHTML = `<p>❌ 条件未满足! 可获得 ${buyAmount} USDC < 最低要求 ${minBuyAmount} USDC</p>`;
+                    submitBtn.disabled = true;
+                }
+                
+                quoteResult.style.display = 'block';
+                outputEl.textContent = `报价获取成功! 可获得: ${buyAmount} USDC`;
+                getQuoteBtn.disabled = false;
+                
+            } catch(err) {
+                showError("获取报价错误: " + err.message);
+                getQuoteBtn.disabled = false;
+            }
+        }
+        
+        // 提交订单函数
+        async function submitOrder() {
+            if (!currentQuote) {
+                showError("没有可用的报价，请先获取报价");
+                return;
+            }
+            
+            outputEl.textContent = "准备提交订单...";
+            submitBtn.disabled = true;
+            
+            try {
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                const walletAddress = await signer.getAddress();
+                
+                // 使用从报价API获取的数据构建订单
+                const unsignedOrder = {
+                    sellToken: currentQuote.sellToken,
+                    buyToken: currentQuote.buyToken,
+                    sellAmount: currentQuote.sellAmount,
+                    buyAmount: currentQuote.buyAmount,
+                    validTo: currentQuote.validTo,
+                    appData: currentQuote.appData || "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    feeAmount: currentQuote.feeAmount || "0",
+                    kind: "sell",
+                    partiallyFillable: false,
+                    receiver: walletAddress
+                };
+                
+                outputEl.textContent = `订单详情:
+- 卖出: ${ethers.utils.formatUnits(currentQuote.sellAmount, 6)} USDT
+- 买入: ${ethers.utils.formatUnits(currentQuote.buyAmount, 6)} USDC
+- 有效期至: ${new Date(currentQuote.validTo * 1000).toLocaleTimeString()}
+签名中...`;
+                
+                const domain = {
+                    name: "Gnosis Protocol",
+                    version: "v2",
+                    chainId: 1,
+                    verifyingContract: "0x9008d19f58aabd9ed0d60971565aa8510560ab41"
+                };
+                
+                const types = {
+                    Order: [
+                        { name: "sellToken", type: "address" },
+                        { name: "buyToken", type: "address" },
+                        { name: "receiver", type: "address" },
+                        { name: "sellAmount", type: "uint256" },
+                        { name: "buyAmount", type: "uint256" },
+                        { name: "validTo", type: "uint32" },
+                        { name: "appData", type: "bytes32" },
+                        { name: "feeAmount", type: "uint256" },
+                        { name: "kind", type: "string" },
+                        { name: "partiallyFillable", type: "bool" }
+                    ]
+                };
+                
+                outputEl.textContent += "\n请在钱包中确认签名...";
+                
+                // 使用 ethers 进行签名
+                const signature = await signer._signTypedData(domain, types, unsignedOrder);
+                
+                outputEl.textContent += "\n向CowSwap提交订单...";
+                
+                // 提交订单到 CowSwap API
+                const res = await fetch(`${apiBase}/v1/orders`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({order: unsignedOrder, signature, from: walletAddress})
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok) {
+                    outputEl.textContent = "订单提交成功!\n订单UID: " + data + 
+                                          "\n有效期至: " + new Date(currentQuote.validTo * 1000).toLocaleString() +
+                                          "\n查看状态: https://explorer.cow.fi/mainnet/orders/" + data;
+                } else {
+                    outputEl.textContent = "订单提交失败: " + JSON.stringify(data, null, 2);
+                }
+                
+                submitBtn.disabled = false;
+                
+            } catch(err) {
+                showError("提交订单错误: " + err.message);
+                submitBtn.disabled = false;
+            }
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', init);
+        document.getElementById("getQuoteBtn").addEventListener("click", getQuote);
+        document.getElementById("submitBtn").addEventListener("click", submitOrder);
+    </script>
+</body>
+</html>
